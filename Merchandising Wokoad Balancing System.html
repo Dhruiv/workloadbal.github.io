@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="en">  
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Laguna Clothing — Workload Balancing Dashboard  </title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{
+  --bg:#0a0c10;--s1:#111419;--s2:#181b22;--s3:#1f232d;
+  --border:#232838;--border2:#2e3548;--text:#e0e5f1;--muted:#5d6988;--dim:#333c52;
+  --mod:#f5a623;--mod-bg:rgba(245,166,35,.09);--mod-bd:rgba(245,166,35,.28);
+  --norm:#3dd68c;--norm-bg:rgba(61,214,140,.07);--norm-bd:rgba(61,214,140,.22);
+  --blue:#5b8af5;--teal:#2dd4bf;--purple:#a78bfa;--rose:#fb7185;--amber:#fbbf24;
+  --radius:10px;--trans:all .22s ease;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;overflow-x:hidden;line-height:1.5}
+::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+
+/* ═══ TOAST ═══ */
+#toastBox{position:fixed;top:74px;right:24px;z-index:999;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.toast{pointer-events:all;padding:12px 18px;border-radius:10px;font-size:12.5px;font-weight:500;background:var(--s2);border:1px solid var(--border2);color:var(--text);box-shadow:0 8px 32px rgba(0,0,0,.45);display:flex;align-items:center;gap:10px;animation:toastIn .3s ease;max-width:380px;backdrop-filter:blur(6px)}
+.toast.success{border-left:3px solid var(--teal)}.toast.warning{border-left:3px solid var(--amber)}.toast.error{border-left:3px solid var(--rose)}.toast.info{border-left:3px solid var(--blue)}
+.toast .ti{font-size:16px;flex-shrink:0}.toast .tc{flex:1}
+@keyframes toastIn{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:translateX(0)}}
+@keyframes toastOut{to{opacity:0;transform:translateX(40px)}}
+
+/* ═══ HEADER ═══ */
+.hdr{background:rgba(17,20,25,.94);border-bottom:1px solid var(--border);padding:0 28px;height:60px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:200;backdrop-filter:blur(14px)}
+.hdr-l{display:flex;align-items:center;gap:14px;flex-shrink:0}
+.logo{width:34px;height:34px;border-radius:8px;background:linear-gradient(135deg,#5b8af5,#a78bfa);display:flex;align-items:center;justify-content:center;font-family:'Syne';font-weight:800;font-size:16px;color:#fff;box-shadow:0 2px 10px rgba(91,138,245,.25)}
+.hdr-brand{font-family:'Syne';font-weight:700;font-size:16px;letter-spacing:-.2px}
+.hdr-sub{font-size:9px;color:var(--muted);font-family:'JetBrains Mono';text-transform:uppercase;letter-spacing:1px;margin-top:1px}
+.gsearch{flex:1;max-width:360px;margin:0 auto}
+.gsearch input{width:100%;background:var(--s2);border:1px solid var(--border);color:var(--text);padding:7px 14px 7px 36px;border-radius:8px;font-size:12px;font-family:'DM Sans';outline:none;transition:var(--trans)}
+.gsearch input:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(91,138,245,.12)}
+.gsearch{position:relative}.gsearch::before{content:'⌕';position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:14px;z-index:1;pointer-events:none}
+.hdr-tags{display:flex;gap:6px;flex-wrap:wrap;flex-shrink:0}
+.htag{padding:3px 10px;border-radius:20px;font-size:9.5px;font-weight:600;font-family:'JetBrains Mono';letter-spacing:.4px;transition:var(--trans)}
+.htag.blue{background:rgba(91,138,245,.1);color:var(--blue);border:1px solid rgba(91,138,245,.2)}
+.htag.teal{background:rgba(45,212,191,.08);color:var(--teal);border:1px solid rgba(45,212,191,.18)}
+.htag.purple{background:rgba(167,139,250,.08);color:var(--purple);border:1px solid rgba(167,139,250,.18)}
+.hdr-actions{display:flex;gap:6px;flex-shrink:0}
+.hdr-abtn{padding:5px 10px;border-radius:7px;font-size:10px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--s2);color:var(--muted);transition:var(--trans);font-family:'DM Sans'}
+.hdr-abtn:hover{border-color:var(--blue);color:var(--blue)}
+
+/* ═══ ACTIVITY DRAWER ═══ */
+.drawer-bg{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:300;opacity:0;pointer-events:none;transition:opacity .2s}
+.drawer-bg.open{opacity:1;pointer-events:all}
+.drawer{position:fixed;top:0;right:-400px;width:380px;max-width:92vw;height:100vh;background:var(--s1);border-left:1px solid var(--border);z-index:301;transition:right .3s ease;display:flex;flex-direction:column;overflow:hidden}
+.drawer-bg.open .drawer{right:0}
+.drawer-hdr{padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.drawer-title{font-family:'Syne';font-weight:700;font-size:16px}
+.drawer-close{background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:4px 8px;border-radius:4px;transition:var(--trans)}
+.drawer-close:hover{color:var(--text);background:var(--s3)}
+.drawer-body{flex:1;overflow-y:auto;padding:12px 16px}
+.act-item{padding:10px 12px;border-radius:8px;margin-bottom:6px;background:var(--s2);font-size:12px;border-left:3px solid var(--border2)}
+.act-item.add{border-left-color:var(--teal)}.act-item.move{border-left-color:var(--blue)}.act-item.del{border-left-color:var(--rose)}.act-item.edit{border-left-color:var(--amber)}
+.act-time{font-size:10px;color:var(--muted);margin-top:3px;font-family:'JetBrains Mono'}
+.drawer-footer{padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:6px;flex-shrink:0}
+
+/* ═══ SEARCH RESULTS DROPDOWN ═══ */
+.search-results{position:absolute;top:100%;left:0;right:0;background:var(--s1);border:1px solid var(--border2);border-radius:8px;margin-top:4px;max-height:360px;overflow-y:auto;display:none;box-shadow:0 12px 40px rgba(0,0,0,.5);z-index:10}
+.search-results.open{display:block}
+.sr-cat{padding:6px 14px;font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);font-weight:600;background:var(--s2);position:sticky;top:0}
+.sr-item{padding:8px 14px;font-size:12px;cursor:pointer;transition:background .1s;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border)}
+.sr-item:hover{background:var(--s2)}
+.sr-item:last-child{border-bottom:none}
+.sr-meta{font-size:10px;color:var(--muted);margin-left:auto;font-family:'JetBrains Mono';flex-shrink:0}
+
+/* ═══ NAV ═══ */
+.nav{background:var(--s1);border-bottom:1px solid var(--border);padding:0 28px;display:flex;gap:2px;overflow-x:auto}
+.nb{padding:11px 18px;font-size:12px;font-weight:500;border:none;background:none;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;transition:var(--trans);white-space:nowrap;font-family:'DM Sans';position:relative}
+.nb.active{color:var(--text);border-bottom-color:var(--blue)}
+.nb:hover{color:var(--text)}
+.nb .nbadge{position:absolute;top:6px;right:4px;width:6px;height:6px;border-radius:50%;background:var(--rose);display:none}
+.nb.dirty .nbadge{display:block}
+
+/* ═══ MAIN ═══ */
+.main{padding:24px 28px;max-width:1640px;margin:0 auto}
+.page{display:none}.page.active{display:block}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.page.active>*{animation:fadeUp .25s ease both}
+.page.active>*:nth-child(2){animation-delay:.03s}
+.page.active>*:nth-child(3){animation-delay:.06s}
+.page.active>*:nth-child(4){animation-delay:.09s}
+
+/* ═══ SECTION TITLE ═══ */
+.st{font-family:'Syne';font-weight:700;font-size:20px;letter-spacing:-.2px;margin-bottom:20px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.st em{font-size:11.5px;font-style:normal;font-family:'DM Sans';font-weight:400;color:var(--muted)}
+.st-right{margin-left:auto;display:flex;gap:6px;align-items:center}
+.st-btn{padding:5px 12px;border-radius:7px;font-size:10.5px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--s2);color:var(--muted);transition:var(--trans);font-family:'DM Sans'}
+.st-btn:hover{border-color:var(--blue);color:var(--blue)}
+.st-btn.primary{background:var(--blue);color:#fff;border-color:var(--blue)}.st-btn.primary:hover{background:#4a78e8}
+
+/* ═══ KPI ═══ */
+.kgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:14px;margin-bottom:24px}
+.kcard{background:var(--s1);border:1px solid var(--border);border-radius:var(--radius);padding:18px 16px;position:relative;overflow:hidden;transition:var(--trans);cursor:default}
+.kcard:hover{transform:translateY(-2px);border-color:var(--border2);box-shadow:0 8px 28px rgba(0,0,0,.3)}
+.kcard::after{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.kcard.mod::after{background:var(--mod)}.kcard.norm::after{background:var(--norm)}.kcard.blue::after{background:var(--blue)}.kcard.teal::after{background:var(--teal)}.kcard.purple::after{background:var(--purple)}.kcard.rose::after{background:var(--rose)}.kcard.amber::after{background:var(--amber)}
+.kl{font-size:9.5px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px}
+.kv{font-family:'Syne';font-weight:700;font-size:30px;letter-spacing:-1px;line-height:1;transition:color .3s}
+.ks{font-size:10.5px;color:var(--muted);margin-top:5px}
+.kv-spark{display:inline-block;margin-left:6px;vertical-align:middle}
+.kbadge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:9.5px;font-weight:600;margin-top:8px;font-family:'JetBrains Mono'}
+.kbadge.mod{background:var(--mod-bg);color:var(--mod);border:1px solid var(--mod-bd)}
+.kbadge.norm{background:var(--norm-bg);color:var(--norm);border:1px solid var(--norm-bd)}
+
+/* ═══ CHART ═══ */
+.cc{background:var(--s1);border:1px solid var(--border);border-radius:var(--radius);padding:18px;transition:var(--trans)}
+.cc:hover{border-color:var(--border2)}
+.ch{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:8px}
+.ct{font-size:13px;font-weight:600}
+.cm{font-size:10.5px;color:var(--muted);font-family:'JetBrains Mono'}
+.ch-actions{display:flex;gap:4px;flex-shrink:0}
+.ch-btn{padding:3px 8px;border-radius:5px;font-size:9px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:none;color:var(--muted);transition:var(--trans);font-family:'JetBrains Mono'}
+.ch-btn:hover,.ch-btn.active{background:var(--blue);color:#fff;border-color:var(--blue)}
+.cw{position:relative;height:250px}
+.cwl{position:relative;height:300px}
+
+/* ═══ GRIDS ═══ */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+.g3{display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:20px}
+.gfull{margin-bottom:20px}
+
+/* ═══ TEAM CARDS ═══ */
+.tgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px;margin-bottom:20px}
+.tcard{background:var(--s1);border:1px solid var(--border);border-radius:var(--radius);padding:16px;transition:var(--trans);cursor:pointer}
+.tcard:hover{border-color:var(--border2);transform:translateY(-1px);box-shadow:0 8px 24px rgba(0,0,0,.25)}
+.tcard.mod-card{border-left:3px solid var(--mod)}.tcard.norm-card{border-left:3px solid var(--norm)}
+.tc-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.tc-name{font-family:'Syne';font-weight:700;font-size:14.5px}
+.tc-sub{font-size:10.5px;color:var(--muted);margin-top:1px}
+.band-pill{padding:3px 9px;border-radius:20px;font-size:9.5px;font-weight:700;letter-spacing:.4px;text-transform:uppercase}
+.band-pill.mod{background:var(--mod-bg);color:var(--mod);border:1px solid var(--mod-bd)}
+.band-pill.norm{background:var(--norm-bg);color:var(--norm);border:1px solid var(--norm-bd)}
+.tc-metrics{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:10px}
+.tc-m{background:var(--s2);border-radius:7px;padding:9px 10px}
+.tc-ml{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+.tc-mv{font-family:'Syne';font-weight:700;font-size:17px;margin-top:2px}
+.tc-bar{height:4px;background:var(--s3);border-radius:3px;overflow:hidden;margin-top:8px}
+.tc-barfill{height:100%;border-radius:3px;transition:width .8s ease}
+
+/* ═══ TABLE ═══ */
+.filter-bar{display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.fl{font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.7px}
+.fsel{background:var(--s2);border:1px solid var(--border);color:var(--text);padding:6px 12px;border-radius:7px;font-size:11.5px;font-family:'DM Sans';cursor:pointer;outline:none;transition:var(--trans)}
+.fsel:focus{border-color:var(--blue)}
+.fsearch{background:var(--s2);border:1px solid var(--border);color:var(--text);padding:7px 12px;border-radius:7px;font-size:11.5px;font-family:'DM Sans';outline:none;width:200px;transition:var(--trans)}
+.fsearch:focus{border-color:var(--blue)}
+.fbtn{padding:6px 14px;border-radius:7px;font-size:10.5px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--muted);transition:var(--trans)}
+.fbtn:hover{background:var(--blue);color:#fff;border-color:var(--blue)}
+.tw{background:var(--s1);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.ts{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:11.5px}
+thead th{background:var(--s2);padding:9px 12px;text-align:left;font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);white-space:nowrap;cursor:pointer;user-select:none;transition:color .15s}
+thead th:hover{color:var(--text)}
+tbody tr{border-bottom:1px solid var(--border);transition:background .12s}
+tbody tr:hover{background:var(--s2)}
+tbody tr:last-child{border-bottom:none}
+td{padding:9px 12px;white-space:nowrap}
+td.fw{font-weight:500}
+td.mono{font-family:'JetBrains Mono';font-size:10.5px;color:var(--muted)}
+.sbar{display:flex;align-items:center;gap:6px}
+.sbg{flex:1;height:4px;background:var(--s3);border-radius:3px;overflow:hidden;min-width:45px}
+.sbf{height:100%;border-radius:3px;transition:width .5s}
+.sv{font-family:'JetBrains Mono';font-size:10.5px;width:34px;text-align:right}
+.pg{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-top:1px solid var(--border);font-size:10.5px;color:var(--muted)}
+.pbtns{display:flex;gap:2px}
+.pbtn{padding:4px 9px;border-radius:5px;border:1px solid var(--border);background:none;color:var(--muted);cursor:pointer;font-size:10.5px;transition:var(--trans)}
+.pbtn.active,.pbtn:hover{background:var(--blue);color:#fff;border-color:var(--blue)}
+.pbtn:disabled{opacity:.3;cursor:default;background:none;color:var(--muted);border-color:var(--border)}
+.bp{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:10px;font-size:9.5px;font-weight:700}
+.bp.mod{background:var(--mod-bg);color:var(--mod)}.bp.norm{background:var(--norm-bg);color:var(--norm)}
+
+/* ═══ BUYER ROWS ═══ */
+.buyer-row{display:grid;grid-template-columns:130px 50px 50px 50px 55px 1fr 90px;gap:8px;align-items:center;padding:9px 14px;border-bottom:1px solid var(--border);font-size:11.5px}
+.buyer-row:last-child{border-bottom:none}
+.buyer-row.bh{background:var(--s2);font-size:9.5px;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);font-weight:600}
+.bci-bar{display:flex;align-items:center;gap:6px}
+.bci-bg{flex:1;height:4px;background:var(--s3);border-radius:3px;overflow:hidden}
+.bci-fill{height:100%;border-radius:3px}
+.bci-val{font-family:'JetBrains Mono';font-size:10.5px;width:28px}
+
+/* ═══ SURVEY ═══ */
+.bar-list{margin-top:4px}
+.bar-item{margin-bottom:10px}
+.bi-top{display:flex;justify-content:space-between;font-size:11.5px;margin-bottom:4px}
+.bi-label{color:var(--text)}
+.bi-count{font-family:'JetBrains Mono';font-size:10.5px;color:var(--muted)}
+.bi-bg{height:5px;background:var(--s3);border-radius:3px;overflow:hidden}
+.bi-fill{height:100%;border-radius:3px;transition:width .8s ease}
+.dl{display:flex;flex-direction:column;gap:7px;justify-content:center}
+.dli{display:flex;align-items:center;gap:7px;font-size:11.5px}
+.dldot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.dlc{margin-left:auto;font-family:'JetBrains Mono';font-size:10.5px;color:var(--muted)}
+
+/* ═══ WORKFORCE BALANCING ═══ */
+.bal-controls{display:flex;align-items:center;gap:7px;margin-bottom:16px;flex-wrap:wrap;padding:14px 16px;background:var(--s1);border:1px solid var(--border);border-radius:var(--radius)}
+.bal-btn{padding:7px 14px;border-radius:7px;font-size:11.5px;font-weight:600;cursor:pointer;border:none;transition:var(--trans);display:inline-flex;align-items:center;gap:4px;font-family:'DM Sans'}
+.bal-btn.primary{background:var(--blue);color:#fff}.bal-btn.primary:hover{background:#4a78e8}
+.bal-btn.sec{background:var(--s2);color:var(--text);border:1px solid var(--border2)}.bal-btn.sec:hover{border-color:var(--blue);color:var(--blue)}
+.bal-btn.warn{background:rgba(251,113,133,.08);color:var(--rose);border:1px solid rgba(251,113,133,.2)}.bal-btn.warn:hover{background:rgba(251,113,133,.15)}
+.bal-btn.good{background:var(--s2);color:var(--text);border:1px solid var(--border2)}.bal-btn.good:hover{border-color:var(--blue)}
+.bal-sep{width:1px;height:20px;background:var(--border);margin:0 3px;flex-shrink:0}
+.moves-ctr{margin-left:auto;font-size:11.5px;color:var(--muted);font-family:'JetBrains Mono'}
+.moves-ctr strong{color:var(--blue)}
+.target-bar-wrap{display:flex;align-items:center;gap:10px;margin-bottom:16px;background:var(--s2);padding:12px 16px;border-radius:var(--radius);border:1px solid var(--border)}
+.target-bar-track{flex:1;height:8px;background:var(--s3);border-radius:4px;position:relative}
+.target-bar-zone{position:absolute;top:0;height:100%;background:rgba(91,138,245,.15);border:1px solid rgba(91,138,245,.3);border-radius:4px}
+.target-bar-pin{position:absolute;top:-5px;width:3px;height:18px;border-radius:2px;transition:left .5s ease}
+.target-bar-val{font-family:'JetBrains Mono';font-size:12px;font-weight:600;min-width:36px;text-align:right}
+.hstrip{display:flex;gap:7px;margin-bottom:16px;overflow-x:auto;padding-bottom:3px}
+.hchip{background:var(--s1);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;flex-shrink:0;min-width:118px;cursor:default;transition:var(--trans)}
+.hchip:hover{border-color:var(--border2);transform:translateY(-1px)}
+.hchip.flagged{border-color:var(--border2);background:var(--s2)}.hchip.warning{border-color:var(--border2)}.hchip.ok{border-color:var(--border)}
+.hc-n{font-size:10.5px;font-weight:700;margin-bottom:3px;white-space:nowrap}
+.hc-v{font-family:'JetBrains Mono';font-size:17px;font-weight:700;margin-bottom:4px;line-height:1;color:var(--text)}
+.hc-sub{font-size:9.5px;color:var(--muted);margin-bottom:4px}
+.hc-f{display:flex;gap:3px;flex-wrap:wrap}
+.hf{font-size:8.5px;padding:1px 5px;border-radius:3px;font-weight:700;letter-spacing:.2px}
+.hf.mci{background:rgba(91,138,245,.12);color:var(--blue)}.hf.hrs{background:rgba(167,139,250,.12);color:var(--purple)}.hf.cap{background:rgba(251,191,36,.12);color:var(--amber)}.hf.ok{background:var(--s3);color:var(--muted)}
+.kboard-wrap{overflow-x:auto;padding-bottom:3px;margin-bottom:16px}
+.kboard{display:flex;gap:10px;align-items:flex-start;min-height:440px;min-width:max-content}
+.kcol{background:var(--s1);border:1px solid var(--border);border-radius:var(--radius);width:192px;flex-shrink:0;transition:var(--trans);display:flex;flex-direction:column}
+.kcol.drag-over{border-color:var(--blue)!important;background:rgba(91,138,245,.05);box-shadow:0 0 0 2px rgba(91,138,245,.12)}
+.kcol.col-flagged,.kcol.col-warn,.kcol.col-ok{border-top:3px solid var(--border2)}
+.kchdr{padding:10px 10px 8px;border-bottom:1px solid var(--border);flex-shrink:0}
+.kc-name{font-family:'Syne';font-weight:700;font-size:12.5px;display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+.kc-badge{font-size:8.5px;padding:1px 6px;border-radius:3px;font-weight:700;background:var(--s3);color:var(--muted)}
+.kc-mci{font-family:'JetBrains Mono';font-size:12px;font-weight:700;color:var(--text)}
+.kc-cnt{font-size:9.5px;color:var(--muted)}
+.kc-hrs{font-size:9.5px;color:var(--muted);margin-top:2px}
+.kc-flags{display:flex;gap:2px;margin-top:4px;flex-wrap:wrap}
+.kbody{padding:6px;display:flex;flex-direction:column;gap:4px;flex:1;min-height:120px}
+.kdrop-hint{border:1.5px dashed var(--border2);border-radius:6px;padding:14px 6px;text-align:center;font-size:10.5px;color:var(--dim);margin:3px}
+.pcard{background:var(--s2);border:1px solid var(--border);border-radius:7px;padding:8px 9px;cursor:grab;transition:var(--trans);user-select:none}
+.pcard:hover{border-color:var(--border2);box-shadow:0 3px 12px rgba(0,0,0,.2);transform:translateY(-1px)}
+.pcard:active{cursor:grabbing}
+.pcard.dragging{opacity:.2;transform:scale(.95)}
+.pcard.pmoved{border-left:3px solid var(--blue);background:rgba(91,138,245,.04)}
+.pcard.psugg{border-left:3px solid var(--amber);background:rgba(251,191,36,.03)}
+.pcard.pnew{border-left:3px solid var(--purple);background:rgba(167,139,250,.03)}
+.pc-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:3px}
+.pc-n{font-size:10.5px;font-weight:600;line-height:1.3;flex:1;padding-right:3px}
+.pc-mci{font-family:'JetBrains Mono';font-size:10px;font-weight:700;padding:1px 5px;border-radius:3px;flex-shrink:0;background:var(--s3);color:var(--text)}
+.pc-role{font-size:8.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;margin-bottom:2px}
+.pc-meta{font-size:9.5px;color:var(--muted)}
+.pc-from{font-size:8.5px;color:var(--blue);margin-top:2px;font-style:italic}
+.pc-actions{display:flex;gap:3px;margin-top:4px;opacity:0;transition:opacity .12s}
+.pcard:hover .pc-actions{opacity:1}
+.pc-btn{font-size:9.5px;padding:2px 6px;border-radius:3px;border:1px solid var(--border);background:none;color:var(--muted);cursor:pointer;transition:var(--trans)}
+.pc-btn:hover{background:var(--blue);color:#fff;border-color:var(--blue)}
+.pc-btn.del:hover{background:var(--rose);border-color:var(--rose)}
+.bal-summary{background:var(--s1);border:1px solid var(--border);border-radius:var(--radius);padding:18px}
+.bsum-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.bsum-title{font-family:'Syne';font-weight:700;font-size:14px}
+.bsum-meta{font-size:10.5px;color:var(--muted)}
+.movelog{background:var(--s2);border-radius:7px;padding:10px 12px;margin-bottom:14px;max-height:130px;overflow-y:auto}
+.mlog-item{display:flex;align-items:center;gap:7px;font-size:11.5px;padding:4px 0;border-bottom:1px solid var(--border)}
+.mlog-item:last-child{border-bottom:none}
+.mlog-name{font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mlog-from{color:var(--muted);font-size:10.5px}.mlog-arr{color:var(--blue)}.mlog-to{color:var(--text);font-size:10.5px}
+.mlog-mci{font-family:'JetBrains Mono';font-size:9.5px;color:var(--muted);flex-shrink:0}
+.sgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:8px}
+.scard{background:var(--s2);border-radius:7px;padding:11px 12px;border-left:3px solid var(--border2);transition:var(--trans)}
+.scard-name{font-size:11.5px;font-weight:600;margin-bottom:7px}
+.scard-row{display:flex;justify-content:space-between;font-size:10.5px;margin-bottom:3px}
+.scard-lbl{color:var(--muted)}.scard-val{font-family:'JetBrains Mono';font-size:10.5px;font-weight:500}
+.dlt-up{color:var(--rose)}.dlt-dn{color:var(--blue)}.dlt-eq{color:var(--muted)}
+.scard-bar{height:3px;background:var(--s3);border-radius:2px;overflow:hidden;margin-top:7px}
+.scard-bar-fill{height:100%;border-radius:2px;transition:width .6s ease}
+
+/* ═══ TASK MANAGER ═══ */
+.tm-controls{display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap;padding:14px 16px;background:var(--s1);border:1px solid var(--border);border-radius:var(--radius)}
+.tm-btn{padding:7px 14px;border-radius:7px;font-size:11.5px;font-weight:600;cursor:pointer;border:none;transition:var(--trans);display:inline-flex;align-items:center;gap:4px;font-family:'DM Sans'}
+.tm-btn.add{background:var(--blue);color:#fff}.tm-btn.add:hover{background:#4a78e8}
+.tm-btn.remove{background:rgba(251,113,133,.08);color:var(--rose);border:1px solid rgba(251,113,133,.2)}.tm-btn.remove:hover{background:rgba(251,113,133,.15)}
+.tm-btn.sec{background:var(--s2);color:var(--text);border:1px solid var(--border2)}.tm-btn.sec:hover{border-color:var(--blue)}
+.tps-badge{padding:2px 7px;border-radius:5px;font-size:9.5px;font-weight:700;font-family:'JetBrains Mono'}
+.tps-high{background:rgba(251,113,133,.1);color:var(--rose)}.tps-med{background:rgba(245,166,35,.1);color:var(--mod)}.tps-low{background:rgba(91,138,245,.1);color:var(--blue)}
+.phase-pill{padding:2px 7px;border-radius:3px;font-size:9.5px;font-weight:600}
+.phase-dev{background:rgba(167,139,250,.1);color:var(--purple)}.phase-bulk{background:rgba(45,212,191,.1);color:var(--teal)}
+
+/* ═══ MODAL ═══ */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:500;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s;backdrop-filter:blur(3px)}
+.modal-bg.open{opacity:1;pointer-events:all}
+.mbox{background:var(--s1);border:1px solid var(--border2);border-radius:12px;width:460px;max-width:95vw;max-height:90vh;overflow-y:auto;padding:24px;transform:translateY(16px);transition:transform .25s ease;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.modal-bg.open .mbox{transform:translateY(0)}
+.m-title{font-family:'Syne';font-weight:700;font-size:17px;margin-bottom:4px}
+.m-sub{font-size:10.5px;color:var(--muted);margin-bottom:18px}
+.mci-live{background:var(--s2);border:1px solid var(--border);border-radius:var(--radius);padding:12px;text-align:center;margin-bottom:18px}
+.mci-live-lbl{font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.7px}
+.mci-live-val{font-family:'Syne';font-weight:700;font-size:28px;margin-top:4px;transition:color .3s}
+.mci-live-zone{font-size:10.5px;color:var(--muted);margin-top:2px}
+.frow{margin-bottom:12px}.frow2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.flbl{font-size:9.5px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;display:block;margin-bottom:4px}
+.finp{width:100%;background:var(--s2);border:1px solid var(--border);color:var(--text);padding:9px 11px;border-radius:7px;font-size:12.5px;font-family:'DM Sans';outline:none;transition:var(--trans)}
+.finp:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(91,138,245,.08)}
+.role-hint{font-size:9.5px;color:var(--blue);margin-top:2px}
+.mactions{display:flex;gap:7px;justify-content:flex-end;margin-top:18px;padding-top:14px;border-top:1px solid var(--border)}
+.mbtn{padding:8px 18px;border-radius:7px;font-size:11.5px;font-weight:600;cursor:pointer;border:none;transition:var(--trans);font-family:'DM Sans'}
+.mbtn.cancel{background:var(--s2);color:var(--muted);border:1px solid var(--border)}.mbtn.cancel:hover{color:var(--text)}
+.mbtn.save{background:var(--blue);color:#fff}.mbtn.save:hover{background:#4a78e8}
+.mbtn.del{background:rgba(251,113,133,.08);color:var(--rose);border:1px solid rgba(251,113,133,.2);margin-right:auto}.mbtn.del:hover{background:rgba(251,113,133,.15)}
+
+/* ═══ LAST SAVED ═══ */
+.last-saved{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:5px 14px;font-size:10px;color:var(--muted);font-family:'JetBrains Mono';z-index:100;display:flex;align-items:center;gap:6px;backdrop-filter:blur(8px)}
+.ls-dot{width:6px;height:6px;border-radius:50%;background:var(--teal);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+@media(max-width:900px){.g2,.g3{grid-template-columns:1fr}.main{padding:14px 16px}.hdr{padding:0 16px;gap:8px}.nav{padding:0 16px}.gsearch{display:none}}
+</style>
+</head>
+<body>
+
+<div id="toastBox"></div>
+
+<header class="hdr">
+  <div class="hdr-l">
+    <div class="logo">L</div>
+    <div><div class="hdr-brand">Laguna Clothing</div><div class="hdr-sub">Workload Balancing Dashboard</div></div>
+  </div>
+  <div class="gsearch">
+    <input id="gSearchInput" placeholder="Search across merchandisers, buyers, tasks…" oninput="gSearch(this.value)" onfocus="gSearch(this.value)" onblur="setTimeout(()=>document.getElementById('gResults').classList.remove('open'),200)">
+    <div class="search-results" id="gResults"></div>
+  </div>
+  <div class="hdr-tags" id="hdrTags">
+    <span class="htag blue" id="hTagMerch">57 Merchandisers</span>
+    <span class="htag teal" id="hTagTeams">9 Teams</span>
+    <span class="htag purple" id="hTagBuyers">10 Buyers · 413 Tasks</span>
+  </div>
+  <div class="hdr-actions">
+    <button class="hdr-abtn" onclick="openDrawer()">Activity Log</button>
+    <button class="hdr-abtn" onclick="undoLast()">Undo</button>
+  </div>
+</header>
+
+<nav class="nav" id="mainNav">
+  <button class="nb active" data-page="overview">Overview<span class="nbadge"></span></button>
+  <button class="nb" data-page="teams">Team Workload<span class="nbadge"></span></button>
+  <button class="nb" data-page="merch">Merchandiser Scores<span class="nbadge"></span></button>
+  <button class="nb" data-page="buyers">Buyer Complexity<span class="nbadge"></span></button>
+  <button class="nb" data-page="tasks">Task Manager<span class="nbadge"></span></button>
+  <button class="nb" data-page="survey">Survey Insights<span class="nbadge"></span></button>
+  <button class="nb" data-page="balance">Workforce Balancing<span class="nbadge"></span></button>
+</nav>
+
+<div class="main">
+
+<!-- OVERVIEW -->
+<div class="page active" id="page-overview">
+  <div class="st">Dashboard Overview <div class="st-right"><button class="st-btn" onclick="exportDashboardPDF()">Export Summary</button></div></div>
+  <div class="kgrid" id="ovKpis"></div>
+  <div class="g2">
+    <div class="cc"><div class="ch"><div class="ct">Team Average Merchandiser Complexity Index</div><div class="ch-actions"><button class="ch-btn active" onclick="toggleChart('ovTeamMci','bar',this)">Bar</button><button class="ch-btn" onclick="toggleChart('ovTeamMci','line',this)">Line</button></div></div><div class="cw"><canvas id="ovTeamMci"></canvas></div></div>
+    <div class="cc"><div class="ch"><div class="ct">Workload Band Distribution</div></div><div style="display:flex;gap:18px;align-items:center;height:250px"><div style="flex:1;position:relative;height:210px"><canvas id="ovBandDonut"></canvas></div><div class="dl" id="ovBandLegend"></div></div></div>
+  </div>
+  <div class="g2">
+    <div class="cc"><div class="ch"><div class="ct">Weekly Hours by Team</div><div class="ch-actions"><button class="ch-btn active" onclick="toggleChart('ovHours','bar',this)">Bar</button><button class="ch-btn" onclick="toggleChart('ovHours','line',this)">Line</button></div></div><div class="cw"><canvas id="ovHours"></canvas></div></div>
+    <div class="cc"><div class="ch"><div class="ct">Role Distribution</div></div><div class="cw"><canvas id="ovRoles"></canvas></div></div>
+  </div>
+</div>
+
+<!-- TEAMS -->
+<div class="page" id="page-teams">
+  <div class="st">Team Workload Analysis <em id="teamSubtitle"></em></div>
+  <div class="tgrid" id="teamGrid"></div>
+  <div class="g2">
+    <div class="cc"><div class="ch"><div class="ct">Average Merchandiser Complexity Index by Team</div></div><div class="cwl"><canvas id="tmMciBar"></canvas></div></div>
+    <div class="cc"><div class="ch"><div class="ct">Capacity Utilisation</div><div class="cm">versus 40 hour reference week</div></div><div class="cwl"><canvas id="tmCapacity"></canvas></div></div>
+  </div>
+</div>
+
+<!-- MERCHANDISERS -->
+<div class="page" id="page-merch">
+  <div class="st">Merchandiser Scorecard <em id="merchSubtitle"></em></div>
+  <div class="filter-bar">
+    <span class="fl">Filter:</span>
+    <select class="fsel" id="fTeam" onchange="renderTable()"><option value="">All Teams</option></select>
+    <select class="fsel" id="fBand" onchange="renderTable()"><option value="">All Bands</option><option value="HIGH">High (65+)</option><option value="MODERATE">Moderate (45-65)</option><option value="NORMAL">Normal (below 45)</option></select>
+    <select class="fsel" id="fRole" onchange="renderTable()"><option value="">All Roles</option><option>Manager</option><option>Assistant Manager</option><option>Merchandiser</option><option>Management Trainee</option><option>Executive</option></select>
+    <input class="fsearch" id="fSearch" placeholder="Search name or ID…" oninput="renderTable()">
+    <button class="fbtn" onclick="clearF()">Clear</button>
+  </div>
+  <div class="tw"><div class="ts"><table id="mt"><thead><tr>
+    <th onclick="sortT('name')">Name ↕</th><th onclick="sortT('role')">Role ↕</th><th onclick="sortT('team')">Team ↕</th><th onclick="sortT('brands')">Brands ↕</th><th onclick="sortT('avgMWS')">Workload Score ↕</th><th onclick="sortT('weeklyHrs')">Hours per Week ↕</th><th onclick="sortT('mci')">Complexity Index ↕</th><th>Band</th>
+  </tr></thead><tbody id="mtbody"></tbody></table></div><div class="pg"><span id="tinfo">–</span><div class="pbtns" id="pbtns"></div></div></div>
+</div>
+
+<!-- BUYERS -->
+<div class="page" id="page-buyers">
+  <div class="st">Buyer Complexity Index</div>
+  <div class="kgrid" id="buyerKpis" style="grid-template-columns:repeat(4,1fr)"></div>
+  <div class="g2">
+    <div class="cc"><div class="ch"><div class="ct">Buyer Complexity Index</div><div class="cm">Ranked high to low</div></div><div class="cw"><canvas id="bBci"></canvas></div></div>
+    <div class="cc"><div class="ch"><div class="ct">Task Priority Score versus Task Count</div></div><div class="cw"><canvas id="bBubble"></canvas></div></div>
+  </div>
+  <div class="cc" style="margin-top:16px"><div class="ch"><div class="ct">Buyer Scorecard</div></div>
+    <div class="buyer-row bh"><div>Buyer</div><div>Tasks</div><div>Avg TC</div><div>Avg Risk</div><div>Avg TPS</div><div>Buyer Complexity Index</div><div>Band</div></div>
+    <div id="buyerRows"></div>
+  </div>
+</div>
+
+<!-- TASK MANAGER -->
+<div class="page" id="page-tasks">
+  <div class="st">Task Manager <em id="taskSubtitle"></em></div>
+  <div class="tm-controls">
+    <button class="tm-btn add" onclick="tmOpenAddBuyer()">+ Add New Buyer</button>
+    <button class="tm-btn remove" onclick="tmOpenRemoveBuyer()">Remove Buyer</button>
+    <div class="bal-sep"></div>
+    <button class="tm-btn sec" onclick="tmOpenAddTask()">+ Add Task</button>
+    <button class="tm-btn sec" onclick="tmExportTasks()">Export Tasks</button>
+    <div class="bal-sep"></div>
+    <span class="fl">Buyer:</span>
+    <select class="fsel" id="tmBuyerFilter" onchange="tmRenderTasks()"><option value="">All Buyers</option></select>
+    <span class="fl">Phase:</span>
+    <select class="fsel" id="tmPhaseFilter" onchange="tmRenderTasks()"><option value="">All Phases</option><option>Development</option><option>Bulk</option></select>
+    <input class="fsearch" id="tmSearch" placeholder="Search tasks…" oninput="tmRenderTasks()" style="width:180px">
+    <div class="moves-ctr" id="tmTaskCount">0 tasks</div>
+  </div>
+  <div class="kgrid" id="tmKpiStrip"></div>
+  <div class="tw"><div class="ts" style="max-height:560px;overflow-y:auto"><table id="tmTable"><thead><tr>
+    <th style="width:36px">#</th><th onclick="tmSort('Buyer')">Buyer ↕</th><th onclick="tmSort('Phase')">Phase ↕</th><th onclick="tmSort('Task')" style="min-width:280px">Task ↕</th><th onclick="tmSort('TC')">Time Criticality ↕</th><th onclick="tmSort('Risk')">Risk ↕</th><th onclick="tmSort('Complexity')">Complexity ↕</th><th onclick="tmSort('TPS')">Task Priority Score ↕</th><th style="width:40px"></th>
+  </tr></thead><tbody id="tmBody"></tbody></table></div><div class="pg"><span id="tmInfo">–</span><div class="pbtns" id="tmPbtns"></div></div></div>
+</div>
+
+<!-- SURVEY -->
+<div class="page" id="page-survey">
+  <div class="st">Survey Insights <em>64 respondents · self-reported operational data</em></div>
+  <div class="g2">
+    <div class="cc"><div class="ch"><div class="ct">Primary Tracking Tool</div></div><div class="cw"><canvas id="svTool"></canvas></div></div>
+    <div class="cc"><div class="ch"><div class="ct">Excel Dependency</div></div><div class="cw"><canvas id="svExcel"></canvas></div></div>
+  </div>
+  <div class="g2">
+    <div class="cc"><div class="ch"><div class="ct">Lead Time Profile</div></div><div class="cw"><canvas id="svLead"></canvas></div></div>
+    <div class="cc"><div class="ch"><div class="ct">Volume Per Style / Colour</div></div><div class="cw"><canvas id="svVol"></canvas></div></div>
+  </div>
+  <div class="g2">
+    <div class="cc"><div class="ch"><div class="ct">Top Bottlenecks</div></div><div class="bar-list" id="svBottle"></div></div>
+    <div class="cc"><div class="ch"><div class="ct">Efficiency Improvement Ideas</div></div><div class="bar-list" id="svEff"></div></div>
+  </div>
+</div>
+
+<!-- WORKFORCE BALANCING -->
+<div class="page" id="page-balance">
+  <div class="st">Workforce Balancing <em>Drag people between teams · Complexity Index recalculates instantly</em></div>
+  <div class="bal-controls">
+    <button class="bal-btn primary" onclick="bAutoBalance()">Auto-Balance</button>
+    <button class="bal-btn sec" onclick="bOpenAdd()">+ Add Person</button>
+    <button class="bal-btn warn" onclick="bReset()">Reset All</button>
+    <button class="bal-btn good" onclick="bExport()">Export CSV</button>
+    <div class="bal-sep"></div>
+    <div class="moves-ctr" id="bMovesCtr">0 changes</div>
+  </div>
+  <div class="target-bar-wrap">
+    <div style="font-size:10.5px;font-weight:600;min-width:160px">Overall Average Complexity Index</div>
+    <div style="flex:1"><div class="target-bar-track"><div class="target-bar-zone" style="left:35%;width:20%"></div><div class="target-bar-pin" id="bAvgPin" style="left:0%;background:var(--blue)"></div></div></div>
+    <div class="target-bar-val" id="bAvgVal">—</div><div style="font-size:10.5px;color:var(--muted)">/ 100</div>
+  </div>
+  <div class="hstrip" id="bHealthStrip"></div>
+  <div class="kboard-wrap"><div class="kboard" id="bKanban"></div></div>
+  <div class="bal-summary"><div class="bsum-hdr"><div class="bsum-title">Reallocation Summary</div><div class="bsum-meta" id="bSumMeta">Drag cards to rebalance</div></div><div class="movelog" id="bMoveLog" style="display:none"></div><div class="sgrid" id="bSumGrid"></div></div>
+</div>
+
+</div>
+
+<!-- ACTIVITY DRAWER -->
+<div class="drawer-bg" id="drawerBg" onclick="if(event.target===this)closeDrawer()">
+  <div class="drawer">
+    <div class="drawer-hdr"><span class="drawer-title">Activity Log</span><button class="drawer-close" onclick="closeDrawer()">✕</button></div>
+    <div class="drawer-body" id="activityLog"><div style="text-align:center;color:var(--muted);padding:40px 0;font-size:12px">No changes yet. Edits, additions, and deletions will appear here.</div></div>
+    <div class="drawer-footer"><button class="bal-btn sec" style="font-size:11px" onclick="clearActivity()">Clear Log</button></div>
+  </div>
+</div>
+
+<!-- PERSON MODAL -->
+<div class="modal-bg" id="bModal" onclick="if(event.target===this)bCloseModal()">
+  <div class="mbox">
+    <div class="m-title" id="bModalTitle">Add New Person</div>
+    <div class="m-sub">Complexity Index = (Workload Score × 0.50 + Time Score × 0.35 + Normalised Brands × 0.15) × Role Weight</div>
+    <div class="mci-live"><div class="mci-live-lbl">Calculated Complexity Index</div><div class="mci-live-val" id="bMciVal">—</div><div class="mci-live-zone" id="bMciZone">Enter Workload Score to preview</div></div>
+    <div class="frow"><label class="flbl">Full Name *</label><input id="bfName" class="finp" placeholder="for example Priya Sharma"></div>
+    <div class="frow2"><div><label class="flbl">Role *</label><select id="bfRole" class="finp" onchange="bPreviewMCI()"><option>Merchandiser</option><option>Assistant Manager</option><option>Manager</option><option>Management Trainee</option><option>Executive</option></select><div class="role-hint" id="bRoleHint"></div></div><div><label class="flbl">Team *</label><select id="bfTeam" class="finp"></select></div></div>
+    <div class="frow2"><div><label class="flbl">Weekly Hours *</label><input id="bfHrs" class="finp" type="number" min="1" max="80" oninput="bPreviewMCI()"></div><div><label class="flbl">Brands *</label><input id="bfBrands" class="finp" type="number" min="1" max="6" value="1" oninput="bPreviewMCI()"></div></div>
+    <div class="frow"><label class="flbl">Workload Score (1–10) *</label><input id="bfMWS" class="finp" type="number" min="1" max="10" step="0.1" oninput="bPreviewMCI()"></div>
+    <div class="frow"><label class="flbl">Reporting Manager</label><input id="bfMgr" class="finp"></div>
+    <div class="mactions"><button class="mbtn del" id="bBtnDel" style="display:none" onclick="bDeletePerson()">Remove</button><button class="mbtn cancel" onclick="bCloseModal()">Cancel</button><button class="mbtn save" onclick="bSavePerson()">Save</button></div>
+  </div>
+</div>
+
+<!-- BUYER MODAL -->
+<div class="modal-bg" id="tmBuyerModal" onclick="if(event.target===this)tmCloseBuyerModal()">
+  <div class="mbox">
+    <div class="m-title">Add New Buyer</div>
+    <div class="m-sub">Define buyer and add initial tasks with complexity ratings</div>
+    <div class="frow"><label class="flbl">Buyer Name *</label><input id="tmBuyerName" class="finp" placeholder="for example ZARA"></div>
+    <div class="frow"><label class="flbl">Initial Phase</label><select id="tmBuyerPhase" class="finp"><option>Development</option><option>Bulk</option></select></div>
+    <div style="margin-top:12px;margin-bottom:6px;font-size:12px;font-weight:600">Initial Tasks</div>
+    <div id="tmNewTasksList"></div>
+    <button class="tm-btn sec" style="margin-top:6px;font-size:10px;padding:4px 10px" onclick="tmAddTaskRow()">+ Add Another Task</button>
+    <div class="mactions"><button class="mbtn cancel" onclick="tmCloseBuyerModal()">Cancel</button><button class="mbtn save" onclick="tmSaveBuyer()">Save Buyer</button></div>
+  </div>
+</div>
+
+<!-- REMOVE BUYER MODAL -->
+<div class="modal-bg" id="tmRemoveModal" onclick="if(event.target===this)tmCloseRemoveModal()">
+  <div class="mbox">
+    <div class="m-title">Remove Buyer and Tasks</div>
+    <div class="m-sub">All tasks for this buyer will be permanently deleted.</div>
+    <div class="frow"><label class="flbl">Select Buyer</label><select id="tmRemoveBuyerSel" class="finp" onchange="tmPreviewRemove()"></select></div>
+    <div id="tmRemovePreview" style="margin-top:10px;font-size:12px;color:var(--muted)"></div>
+    <div class="mactions"><button class="mbtn cancel" onclick="tmCloseRemoveModal()">Cancel</button><button class="mbtn del" style="margin-right:0" onclick="tmConfirmRemoveBuyer()">Remove Buyer</button></div>
+  </div>
+</div>
+
+<!-- ADD TASK MODAL -->
+<div class="modal-bg" id="tmTaskModal" onclick="if(event.target===this)tmCloseTaskModal()">
+  <div class="mbox">
+    <div class="m-title">Add New Task</div>
+    <div class="m-sub">Add a task with complexity ratings to an existing buyer</div>
+    <div class="frow"><label class="flbl">Buyer *</label><select id="tmTaskBuyer" class="finp"></select></div>
+    <div class="frow"><label class="flbl">Phase *</label><select id="tmTaskPhase" class="finp"><option>Development</option><option>Bulk</option></select></div>
+    <div class="frow"><label class="flbl">Task Description *</label><input id="tmTaskDesc" class="finp"></div>
+    <div class="frow2"><div><label class="flbl">Time Criticality (1–10)</label><input id="tmTaskTC" class="finp" type="number" min="1" max="10" value="5"></div><div><label class="flbl">Risk (1–10)</label><input id="tmTaskRisk" class="finp" type="number" min="1" max="10" value="5"></div></div>
+    <div class="frow"><label class="flbl">Complexity (1–10)</label><input id="tmTaskComp" class="finp" type="number" min="1" max="10" value="5"></div>
+    <div class="mactions"><button class="mbtn cancel" onclick="tmCloseTaskModal()">Cancel</button><button class="mbtn save" onclick="tmSaveTask()">Add Task</button></div>
+  </div>
+</div>
+
+<div class="last-saved"><span class="ls-dot"></span><span id="lastSavedText">Session started</span></div>
+
+<script>
+'use strict';
+
+/* ═══════════════════════════════════════════════════════════
+   REACTIVE DATA STORE — Single source of truth
+   All derived data is computed, never stored statically.
+   ═══════════════════════════════════════════════════════════ */
+
+const ROLE_W={Manager:1.15,'Assistant Manager':1.15,Merchandiser:0.95,'Management Trainee':0.85,Executive:1.0};
+const MOD_TEAMS=['Kiran','Amrita','Dibyashree'];
+const ALL_TEAMS=['Kiran','Amrita','Dibyashree','Nandesh','Ayushi','Rathish','Shivam','Aishwarya','Pavan'];
+
+// ── Core mutable data arrays ──
+let MERCH=[
+{name:'Smriti Goel',id:'80254',role:'Assistant Manager',manager:'Aishwarya M N',team:'Aishwarya',brands:3,avgMWS:7.09,weeklyHrs:49},
+{name:'Amrita Ragupathi',id:'80215',role:'Assistant Manager',manager:'Kanishka',team:'Amrita',brands:2,avgMWS:7.5,weeklyHrs:75},
+{name:'Aishwarya N Adhikashreni',id:'80335',role:'Assistant Manager',manager:'Sneha Bedge',team:'Ayushi',brands:1,avgMWS:7.23,weeklyHrs:55},
+{name:'Sneha Sharad Bedage',id:'80276',role:'Assistant Manager',manager:'Ms. Ayushi Singh',team:'Ayushi',brands:1,avgMWS:7.23,weeklyHrs:55},
+{name:'Prabhuti Chauhan',id:'80265',role:'Assistant Manager',manager:'Nandesh',team:'Nandesh',brands:3,avgMWS:5.73,weeklyHrs:45},
+{name:'Muthukrishnan P',id:'80294',role:'Assistant Manager',manager:'Ayushi Singh',team:'Ayushi',brands:1,avgMWS:7.62,weeklyHrs:41},
+{name:'Kiran Mv',id:'80298',role:'Manager',manager:'Muthuram Barathy',team:'Kiran',brands:3,avgMWS:4.95,weeklyHrs:48},
+{name:'M.Rathish Kumar',id:'LINJ80446',role:'Manager',manager:'Kanishka',team:'Rathish',brands:3,avgMWS:5.56,weeklyHrs:42},
+{name:'Pavithra M',id:'LINJ80477',role:'Merchandiser',manager:'Ratish Kumar',team:'Rathish',brands:1,avgMWS:8.54,weeklyHrs:50},
+{name:'Guruharan Ravi',id:'LINJ80295',role:'Assistant Manager',manager:'Rathish M',team:'Rathish',brands:3,avgMWS:7.48,weeklyHrs:16},
+{name:'Dibyashree Panigrahi',id:'80370',role:'Manager',manager:'Rajanikanth',team:'Dibyashree',brands:2,avgMWS:5.06,weeklyHrs:45},
+{name:'Sanjana KB',id:'80427',role:'Merchandiser',manager:'Nandesh B',team:'Nandesh',brands:3,avgMWS:6.12,weeklyHrs:45},
+{name:'Anushree Bhat',id:'LINJ80346',role:'Assistant Manager',manager:'Aishwarya',team:'Aishwarya',brands:3,avgMWS:6.82,weeklyHrs:16},
+{name:'Ms. Aastha Sharma',id:'80182',role:'Assistant Manager',manager:'Mr. Pavan R',team:'Pavan',brands:1,avgMWS:4.72,weeklyHrs:50},
+{name:'Nandesh B',id:'80458',role:'Manager',manager:'Kanishka',team:'Nandesh',brands:3,avgMWS:5.61,weeklyHrs:25},
+{name:'Anshika',id:'80444',role:'Merchandiser',manager:'Nandesh',team:'Nandesh',brands:3,avgMWS:5.43,weeklyHrs:45},
+{name:'Yash Ajit Patil',id:'80423',role:'Merchandiser',manager:'Muthukrishnan P',team:'Ayushi',brands:1,avgMWS:7.34,weeklyHrs:43},
+{name:'Maithili Gore',id:'80443',role:'Merchandiser',manager:'Ayushi Singh',team:'Ayushi',brands:1,avgMWS:7.34,weeklyHrs:40},
+{name:'Purva Kore',id:'80452',role:'Merchandiser',manager:'Muthukrishan',team:'Ayushi',brands:1,avgMWS:7.34,weeklyHrs:40},
+{name:'Shivam Devesar',id:'80372',role:'Assistant Manager',manager:'Kanishka',team:'Shivam',brands:2,avgMWS:7.59,weeklyHrs:10},
+{name:'Niya Anna Regi',id:'Niya@laguna',role:'Merchandiser',manager:'Shivam Devesar',team:'Shivam',brands:1,avgMWS:7.66,weeklyHrs:35},
+{name:'Jaypreet Kulshrestha',id:'LINJ80436',role:'Assistant Manager',manager:'Mr. Rathish',team:'Rathish',brands:2,avgMWS:4.58,weeklyHrs:33},
+{name:'Sohini Halder',id:'80363',role:'Merchandiser',manager:'Aishwarya MN',team:'Aishwarya',brands:2,avgMWS:6.77,weeklyHrs:25},
+{name:'Aishwarya MN',id:'80229',role:'Assistant Manager',manager:'Rajanikant Singh',team:'Aishwarya',brands:3,avgMWS:5.95,weeklyHrs:3},
+{name:'Sanjana S',id:'80395',role:'Merchandiser',manager:'Kiran M V',team:'Kiran',brands:3,avgMWS:5.09,weeklyHrs:30},
+{name:'Priyanka Selvaraj',id:'LINJ80486',role:'Merchandiser',manager:'Dibyashree Panigrahi',team:'Dibyashree',brands:1,avgMWS:6.66,weeklyHrs:32},
+{name:'Asmitha M',id:'Asmitha',role:'Merchandiser',manager:'Amrita Raghupati',team:'Amrita',brands:1,avgMWS:4.47,weeklyHrs:50},
+{name:'Ayushi Singh',id:'LINJ80731',role:'Manager',manager:'Kanishka Itte',team:'Ayushi',brands:1,avgMWS:6.16,weeklyHrs:17.5},
+{name:'Ishika Sinha',id:'LINJ80393',role:'Merchandiser',manager:'Smriti Goel',team:'Aishwarya',brands:1,avgMWS:7.17,weeklyHrs:25},
+{name:'Kasthuri BT',id:'80449',role:'Merchandiser',manager:'Amrita Ragupathi',team:'Amrita',brands:1,avgMWS:6.59,weeklyHrs:30},
+{name:'Yashaswini S',id:'80467',role:'Management Trainee',manager:'Anushree/Aishwarya',team:'Aishwarya',brands:2,avgMWS:5.7,weeklyHrs:40},
+{name:'Pallabi Sarkar',id:'80325',role:'Assistant Manager',manager:'Dibyashree Panigrahi',team:'Dibyashree',brands:1,avgMWS:6.59,weeklyHrs:12.5},
+{name:'Yogeshwar',id:'80490',role:'Assistant Manager',manager:'Kavin',team:'Pavan',brands:1,avgMWS:7.26,weeklyHrs:5.5},
+{name:'Surabhi',id:'Surabhi@laguna',role:'Merchandiser',manager:'Pavan Sir',team:'Pavan',brands:1,avgMWS:8.26,weeklyHrs:13.5},
+{name:'Kavinkumar Selvaraj',id:'Kavin@laguna',role:'Manager',manager:'Pavan Kumar R',team:'Pavan',brands:1,avgMWS:7.2,weeklyHrs:6},
+{name:'Aswathi Nandakumar',id:'80301',role:'Merchandiser',manager:'Rathish Kumar',team:'Rathish',brands:2,avgMWS:4.58,weeklyHrs:36},
+{name:'V S Hema',id:'LINJ80416',role:'Merchandiser',manager:'Pavan',team:'Pavan',brands:1,avgMWS:5.9,weeklyHrs:27.5},
+{name:'Mounika V',id:'LINJ80383',role:'Merchandiser',manager:'Dibya Shree Panigrahi',team:'Dibyashree',brands:1,avgMWS:7.23,weeklyHrs:14.5},
+{name:'Abhivyakti',id:'LINJ80400',role:'Merchandiser',manager:'Dibyashree',team:'Dibyashree',brands:1,avgMWS:7.23,weeklyHrs:13.5},
+{name:'Lavanya',id:'LINJ80356',role:'Merchandiser',manager:'Dibyashree',team:'Dibyashree',brands:1,avgMWS:7.2,weeklyHrs:13.5},
+{name:'Anusha GM',id:'80480',role:'Merchandiser',manager:'Aishwarya MN',team:'Aishwarya',brands:3,avgMWS:5.6,weeklyHrs:11},
+{name:'Chandan',id:'LINJ80392',role:'Executive',manager:'Pavan Sir',team:'Pavan',brands:1,avgMWS:6.57,weeklyHrs:13},
+{name:'Vani',id:'80411',role:'Assistant Manager',manager:'Kavin Kumar',team:'Pavan',brands:1,avgMWS:5.7,weeklyHrs:10},
+{name:'S Preeti',id:'80274',role:'Merchandiser',manager:'Kiran MV',team:'Kiran',brands:1,avgMWS:6.06,weeklyHrs:17.5},
+{name:'Vinutha',id:'80384',role:'Management Trainee',manager:'Muthukrishnan',team:'Ayushi',brands:1,avgMWS:7.34,weeklyHrs:15},
+{name:'Shubhada Kanire',id:'LINJ80421',role:'Merchandiser',manager:'Kavin',team:'Pavan',brands:1,avgMWS:6.1,weeklyHrs:16.5},
+{name:'Saurav Kumar',id:'LINJ80442',role:'Merchandiser',manager:'Rajeshwari V',team:'Pavan',brands:2,avgMWS:6.04,weeklyHrs:5.5},
+{name:'Vaishnavi Kalyankar',id:'LINJ80475',role:'Merchandiser',manager:'Amrita Raghupati',team:'Amrita',brands:1,avgMWS:4.22,weeklyHrs:30},
+{name:'Doddi Joshi Kumar',id:'80391',role:'Executive',manager:'Dibyashree',team:'Dibyashree',brands:1,avgMWS:6.42,weeklyHrs:2.5},
+{name:'Priyadharshini N',id:'LINJ80463',role:'Merchandiser',manager:'Rathish Kumar',team:'Rathish',brands:1,avgMWS:6.7,weeklyHrs:7},
+{name:'Aarti Tukaram Shinde',id:'LINJ80484',role:'Management Trainee',manager:'Dibyashree Panigrahi',team:'Dibyashree',brands:1,avgMWS:7.12,weeklyHrs:6.5},
+{name:'Pallabi Sinha',id:'80485',role:'Assistant Manager',manager:'Dibyashree Panigrahi',team:'Dibyashree',brands:1,avgMWS:4.11,weeklyHrs:12.5},
+{name:'Sappati Rahul',id:'80472',role:'Management Trainee',manager:'Sneha Bedage',team:'Ayushi',brands:1,avgMWS:6.16,weeklyHrs:13},
+{name:'Kumaraswamy BG',id:'80465',role:'Assistant Manager',manager:'Kiran M V',team:'Kiran',brands:1,avgMWS:4.5,weeklyHrs:8},
+{name:'Kavinila A',id:'80457',role:'Merchandiser',manager:'Kiran M V',team:'Kiran',brands:1,avgMWS:5.15,weeklyHrs:3.7},
+{name:'Aditi Khandelwal',id:'LINJ80438',role:'Merchandiser',manager:'Pavan Kumar',team:'Pavan',brands:1,avgMWS:4.52,weeklyHrs:11},
+{name:'Ankita Moulick',id:'LINJ80435',role:'Merchandiser',manager:'Dibyashree Panigrahi',team:'Dibyashree',brands:1,avgMWS:3.66,weeklyHrs:8},
+];
+
+let TASKS=[];let nextMerchId=2000;let nextTaskId=10000;
+
+// ── Activity log + undo ──
+let activityLog=[];let undoStack=[];
+
+function timeScoreBand(h){return h<30?3:h<35?5:h<=40?7:h<=45?8.5:10}
+function calcMCI(m){const rw=ROLE_W[m.role]||1;const mws=Math.min(Math.max(+m.avgMWS||5,1),10)/10;const ts=timeScoreBand(+m.weeklyHrs||0)/10;const br=Math.max(0,Math.min(1,((+m.brands||1)-1)/2));return Math.round(Math.min(100,(mws*.5+ts*.35+br*.15)*rw*100)*10)/10}
+function teamColor(n){return MOD_TEAMS.includes(n)?'#f5a623':'#3dd68c'}
+function mciColor(v){return v>=65?'#fb7185':v>=45?'#fbbf24':'#3dd68c'}
+function bciColor(v){return v>=55?'#f5a623':v>=45?'#2dd4bf':'#3dd68c'}
+
+// ── Capacity overrides (manually verified values) ──
+const CAP_OVERRIDE={Amrita:56.75};
+
+// ── Band logic: individual MCI-based, NOT team-based ──
+function mciBand(mci){return mci>=65?'HIGH':mci>=45?'MODERATE':'NORMAL'}
+
+// ── Derived computations ──
+function computeMerchData(){return MERCH.map(m=>{const mci=calcMCI(m);return{...m,mci,band:mciBand(mci)}})}
+function computeTeamStats(merchData){
+  return ALL_TEAMS.map(t=>{
+    const m=merchData.filter(p=>p.team===t);if(!m.length)return{name:t,hc:0,avgMCI:0,topMCI:0,avgHrs:0,totalHrs:0,cap:0,band:MOD_TEAMS.includes(t)?'MODERATE':'NORMAL'};
+    const avgMCI=+(m.reduce((s,p)=>s+p.mci,0)/m.length).toFixed(1);
+    const avgHrs=+(m.reduce((s,p)=>s+(+p.weeklyHrs||0),0)/m.length).toFixed(1);
+    const totalHrs=+m.reduce((s,p)=>s+(+p.weeklyHrs||0),0).toFixed(1);
+    const cap=CAP_OVERRIDE[t]!==undefined?CAP_OVERRIDE[t]:+(avgHrs/40*100).toFixed(1);
+    return{name:t,hc:m.length,avgMCI,topMCI:+Math.max(...m.map(p=>p.mci)).toFixed(1),avgHrs,totalHrs,cap,band:MOD_TEAMS.includes(t)?'MODERATE':'NORMAL'};
+  });
+}
+function computeBuyerStats(){
+  const buyers=[...new Set(TASKS.map(t=>t.Buyer))].sort();
+  return buyers.map(b=>{
+    const ts=TASKS.filter(t=>t.Buyer===b);if(!ts.length)return null;
+    const avgTC=+(ts.reduce((s,t)=>s+t.TC,0)/ts.length).toFixed(2);
+    const avgRisk=+(ts.reduce((s,t)=>s+t.Risk,0)/ts.length).toFixed(2);
+    const avgComp=+(ts.reduce((s,t)=>s+t.Complexity,0)/ts.length).toFixed(2);
+    const avgTPS=+(ts.reduce((s,t)=>s+t.TPS,0)/ts.length).toFixed(2);
+    const critPct=+(ts.filter(t=>t.TPS>=7).length/ts.length*100).toFixed(1);
+    const bci=+(avgTPS*10+ts.length/10+critPct/5).toFixed(1);
+    return{buyer:b,tasks:ts.length,avgTC,avgRisk,avgComp,avgTPS,critPct,bci};
+  }).filter(Boolean);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   CHART REGISTRY — allows live updates
+   ═══════════════════════════════════════════════════════════ */
+const CHARTS={};const TT={backgroundColor:'#181b22',borderColor:'#2e3548',borderWidth:1,titleColor:'#e0e5f1',bodyColor:'#5d6988',padding:9,cornerRadius:6};
+Chart.defaults.color='#5d6988';Chart.defaults.borderColor='#232838';Chart.defaults.font.family="'DM Sans',sans-serif";Chart.defaults.font.size=11;
+
+function makeChart(id,cfg){if(CHARTS[id]){CHARTS[id].destroy()}CHARTS[id]=new Chart(document.getElementById(id),cfg);return CHARTS[id]}
+
+/* ═══════════════════════════════════════════════════════════
+   TOAST + ACTIVITY + UNDO SYSTEM
+   ═══════════════════════════════════════════════════════════ */
+function toast(msg,type='info'){
+  const box=document.getElementById('toastBox');
+  const icons={success:'✓',warning:'⚠',error:'✕',info:'ℹ'};
+  const el=document.createElement('div');el.className='toast '+type;
+  el.innerHTML=`<span class="ti">${icons[type]}</span><span class="tc">${msg}</span>`;
+  box.appendChild(el);setTimeout(()=>{el.style.animation='toastOut .3s ease forwards';setTimeout(()=>el.remove(),300)},3500);
+}
+function logActivity(msg,type='info'){
+  activityLog.unshift({msg,type,time:new Date().toLocaleTimeString()});
+  updateActivityDrawer();updateLastSaved();
+}
+function updateActivityDrawer(){
+  const el=document.getElementById('activityLog');
+  if(!activityLog.length){el.innerHTML='<div style="text-align:center;color:var(--muted);padding:40px 0;font-size:12px">No changes yet.</div>';return}
+  el.innerHTML=activityLog.slice(0,50).map(a=>`<div class="act-item ${a.type}"><div>${a.msg}</div><div class="act-time">${a.time}</div></div>`).join('');
+}
+function clearActivity(){activityLog=[];updateActivityDrawer();toast('Activity log cleared','info')}
+function openDrawer(){document.getElementById('drawerBg').classList.add('open')}
+function closeDrawer(){document.getElementById('drawerBg').classList.remove('open')}
+function pushUndo(label,undoFn){undoStack.push({label,fn:undoFn});if(undoStack.length>30)undoStack.shift()}
+function undoLast(){if(!undoStack.length){toast('Nothing to undo','warning');return}const u=undoStack.pop();u.fn();toast(`Undone: ${u.label}`,'info');logActivity(`Undo: ${u.label}`,'edit');recalcAll()}
+function updateLastSaved(){document.getElementById('lastSavedText').textContent='Last change: '+new Date().toLocaleTimeString()}
+
+/* ═══════════════════════════════════════════════════════════
+   GLOBAL SEARCH
+   ═══════════════════════════════════════════════════════════ */
+function gSearch(q){
+  const res=document.getElementById('gResults');
+  if(!q||q.length<2){res.classList.remove('open');return}
+  q=q.toLowerCase();let html='';
+  const md=computeMerchData().filter(m=>m.name.toLowerCase().includes(q)||m.id.toLowerCase().includes(q)).slice(0,5);
+  if(md.length){html+=`<div class="sr-cat">Merchandisers</div>`;md.forEach(m=>{html+=`<div class="sr-item" onclick="navTo('merch');document.getElementById('fSearch').value='${m.name}';renderTable()"><span>${m.name}</span><span class="sr-meta">${m.team} · MCI ${m.mci}</span></div>`})}
+  const td=TASKS.filter(t=>t.Task.toLowerCase().includes(q)||t.Buyer.toLowerCase().includes(q)).slice(0,5);
+  if(td.length){html+=`<div class="sr-cat">Tasks</div>`;td.forEach(t=>{html+=`<div class="sr-item" onclick="navTo('tasks');document.getElementById('tmSearch').value='${t.Task.substring(0,30)}';tmRenderTasks()"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.Task}</span><span class="sr-meta">${t.Buyer}</span></div>`})}
+  if(!html)html='<div style="padding:16px;text-align:center;color:var(--muted);font-size:12px">No results found</div>';
+  res.innerHTML=html;res.classList.add('open');
+}
+
+/* ═══════════════════════════════════════════════════════════
+   NAVIGATION
+   ═══════════════════════════════════════════════════════════ */
+document.querySelectorAll('.nb').forEach(btn=>{btn.addEventListener('click',()=>navTo(btn.dataset.page))});
+function navTo(id){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nb').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  document.querySelector(`.nb[data-page="${id}"]`).classList.add('active');
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MASTER RECALC — called after ANY data mutation
+   Rebuilds all derived data, updates all charts and UIs
+   ═══════════════════════════════════════════════════════════ */
+function recalcAll(){
+  const md=computeMerchData();const ts=computeTeamStats(md);const bs=computeBuyerStats();
+
+  // Header tags
+  document.getElementById('hTagMerch').textContent=`${MERCH.length} Merchandisers`;
+  document.getElementById('hTagTeams').textContent=`${ALL_TEAMS.length} Teams`;
+  document.getElementById('hTagBuyers').textContent=`${bs.length} Buyers · ${TASKS.length} Tasks`;
+
+  // ── OVERVIEW ──
+  const modCount=ts.filter(t=>MOD_TEAMS.includes(t.name)).length;
+  const normCount=ts.length-modCount;
+  const totalHrs=ts.reduce((s,t)=>s+t.totalHrs,0);
+  const avgHrs=MERCH.length?(totalHrs/MERCH.length).toFixed(0):0;
+  const avgMCI=md.length?(md.reduce((s,m)=>s+m.mci,0)/md.length).toFixed(1):0;
+
+  document.getElementById('ovKpis').innerHTML=`
+    <div class="kcard mod"><div class="kl">Moderate Load Teams</div><div class="kv" style="color:var(--mod)">${modCount}</div><div class="ks">${MOD_TEAMS.join(' · ')}</div></div>
+    <div class="kcard norm"><div class="kl">Normal Load Teams</div><div class="kv" style="color:var(--norm)">${normCount}</div></div>
+    <div class="kcard blue"><div class="kl">Total Headcount</div><div class="kv" style="color:var(--blue)">${MERCH.length}</div></div>
+    <div class="kcard teal"><div class="kl">Average Weekly Hours</div><div class="kv" style="color:var(--teal)">${avgHrs}</div></div>
+    <div class="kcard purple"><div class="kl">Total Weekly Hours</div><div class="kv" style="color:var(--purple)">${Math.round(totalHrs).toLocaleString()}</div></div>
+    <div class="kcard rose"><div class="kl">Average Complexity Index</div><div class="kv" style="color:var(--rose)">${avgMCI}</div></div>
+    <div class="kcard amber"><div class="kl">Total Tasks</div><div class="kv" style="color:var(--amber)">${TASKS.length}</div></div>`;
+
+  const sorted=[...ts].sort((a,b)=>b.avgMCI-a.avgMCI);
+  makeChart('ovTeamMci',{type:'bar',data:{labels:sorted.map(t=>t.name),datasets:[{data:sorted.map(t=>t.avgMCI),backgroundColor:sorted.map(t=>teamColor(t.name)),borderRadius:5,borderSkipped:false}]},options:{plugins:{legend:{display:false},tooltip:{...TT,callbacks:{label:c=>`Complexity Index: ${c.raw}`}}},scales:{x:{grid:{color:'#1f232d'}},y:{grid:{color:'#1f232d'},min:0,max:Math.max(80,...sorted.map(t=>t.avgMCI+10))}},onClick:(e,els)=>{if(els.length){const team=sorted[els[0].index].name;navTo('merch');document.getElementById('fTeam').value=team;renderTable();toast(`Filtered to ${team}`,'info')}}}});
+  document.getElementById('ovBandLegend').innerHTML=`<div class="dli"><div class="dldot" style="background:var(--mod)"></div>Moderate<span class="dlc">${modCount}</span></div><div class="dli"><div class="dldot" style="background:var(--norm)"></div>Normal<span class="dlc">${normCount}</span></div>`;
+  makeChart('ovBandDonut',{type:'doughnut',data:{labels:['Moderate','Normal'],datasets:[{data:[modCount,normCount],backgroundColor:['#f5a623','#3dd68c'],borderWidth:0,hoverOffset:8}]},options:{cutout:'72%',plugins:{legend:{display:false},tooltip:{...TT}},animation:{animateRotate:true,duration:800}}});
+  makeChart('ovHours',{type:'bar',data:{labels:sorted.map(t=>t.name),datasets:[{label:'Total Hours per Week',data:sorted.map(t=>t.totalHrs),backgroundColor:'rgba(91,138,245,.65)',borderRadius:4,borderSkipped:false},{label:'Average Hours per Head',data:sorted.map(t=>t.avgHrs),backgroundColor:'rgba(45,212,191,.65)',borderRadius:4,borderSkipped:false}]},options:{plugins:{legend:{display:true,labels:{color:'#5d6988',boxWidth:10}},tooltip:{...TT}},scales:{x:{grid:{color:'#1f232d'}},y:{grid:{color:'#1f232d'}}}}});
+
+  const roles={};md.forEach(m=>{roles[m.role]=(roles[m.role]||0)+1});
+  makeChart('ovRoles',{type:'doughnut',data:{labels:Object.keys(roles),datasets:[{data:Object.values(roles),backgroundColor:['#5b8af5','#f5a623','#3dd68c','#a78bfa','#fb7185'],borderWidth:0,hoverOffset:6}]},options:{cutout:'58%',plugins:{legend:{display:true,position:'right',labels:{color:'#5d6988',boxWidth:10,padding:8}},tooltip:{...TT}}}});
+
+  // ── TEAMS ──
+  document.getElementById('teamSubtitle').textContent=`${ts.length} teams · ${modCount} Moderate · ${normCount} Normal`;
+  document.getElementById('teamGrid').innerHTML=sorted.map(t=>{
+    const isMod=MOD_TEAMS.includes(t.name);const col=teamColor(t.name);
+    return`<div class="tcard ${isMod?'mod-card':'norm-card'}" onclick="navTo('merch');document.getElementById('fTeam').value='${t.name}';renderTable();toast('Filtered to ${t.name}','info')">
+      <div class="tc-top"><div><div class="tc-name">${t.name}</div><div class="tc-sub">${t.hc} members</div></div><span class="band-pill ${isMod?'mod':'norm'}">${isMod?'MODERATE':'NORMAL'}</span></div>
+      <div class="tc-metrics"><div class="tc-m"><div class="tc-ml">Average Complexity Index</div><div class="tc-mv" style="color:${col}">${t.avgMCI}</div></div><div class="tc-m"><div class="tc-ml">Top Complexity Index</div><div class="tc-mv">${t.topMCI}</div></div><div class="tc-m"><div class="tc-ml">Average Hours per Week</div><div class="tc-mv">${t.avgHrs}h</div></div><div class="tc-m"><div class="tc-ml">Capacity</div><div class="tc-mv" style="color:${t.cap>100?'var(--rose)':'inherit'}">${t.cap}%</div></div></div>
+      <div class="tc-bar"><div class="tc-barfill" style="width:${Math.min(t.avgMCI,100)}%;background:${col}"></div></div></div>`;
+  }).join('');
+  makeChart('tmMciBar',{type:'bar',data:{labels:sorted.map(t=>t.name),datasets:[{data:sorted.map(t=>t.avgMCI),backgroundColor:sorted.map(t=>teamColor(t.name)),borderRadius:5,borderSkipped:false}]},options:{indexAxis:'y',plugins:{legend:{display:false},tooltip:{...TT}},scales:{x:{grid:{color:'#1f232d'},min:0},y:{grid:{display:false}}},onClick:(e,els)=>{if(els.length){navTo('merch');document.getElementById('fTeam').value=sorted[els[0].index].name;renderTable()}}}});
+  makeChart('tmCapacity',{type:'bar',data:{labels:sorted.map(t=>t.name),datasets:[{data:sorted.map(t=>t.cap),backgroundColor:sorted.map(t=>t.cap>100?'#fb7185':teamColor(t.name)),borderRadius:5,borderSkipped:false}]},options:{indexAxis:'y',plugins:{legend:{display:false},tooltip:{...TT,callbacks:{label:c=>`${c.raw}%`}}},scales:{x:{grid:{color:'#1f232d'},min:0,ticks:{callback:v=>v+'%'}},y:{grid:{display:false}}}}});
+
+  // ── MERCH ──
+  document.getElementById('merchSubtitle').textContent=`${MERCH.length} people · sortable and filterable`;
+  const teamSel=document.getElementById('fTeam');const selVal=teamSel.value;
+  teamSel.innerHTML='<option value="">All Teams</option>'+ALL_TEAMS.map(t=>`<option${t===selVal?' selected':''}>${t}</option>`).join('');
+  renderTable();
+
+  // ── BUYERS ──
+  const bSorted=[...bs].sort((a,b)=>b.bci-a.bci);
+  document.getElementById('buyerKpis').innerHTML=`
+    <div class="kcard teal"><div class="kl">Total Tasks</div><div class="kv" style="color:var(--teal)">${TASKS.length}</div></div>
+    <div class="kcard purple"><div class="kl">Average Buyer Complexity Index</div><div class="kv" style="color:var(--purple)">${bs.length?(bs.reduce((s,b)=>s+b.bci,0)/bs.length).toFixed(1):'—'}</div></div>
+    <div class="kcard amber"><div class="kl">Average Task Priority Score</div><div class="kv" style="color:var(--amber)">${bs.length?(bs.reduce((s,b)=>s+b.avgTPS,0)/bs.length).toFixed(2):'—'}</div></div>
+    <div class="kcard rose"><div class="kl">Percentage Critical Tasks</div><div class="kv" style="color:var(--rose)">${TASKS.length?(TASKS.filter(t=>t.TPS>=7).length/TASKS.length*100).toFixed(1):'0'}%</div></div>`;
+  if(bSorted.length){
+    makeChart('bBci',{type:'bar',data:{labels:bSorted.map(b=>b.buyer),datasets:[{data:bSorted.map(b=>b.bci),backgroundColor:bSorted.map(b=>bciColor(b.bci)),borderRadius:5,borderSkipped:false}]},options:{plugins:{legend:{display:false},tooltip:{...TT}},scales:{x:{grid:{display:false}},y:{grid:{color:'#1f232d'}}},onClick:(e,els)=>{if(els.length){navTo('tasks');document.getElementById('tmBuyerFilter').value=bSorted[els[0].index].buyer;tmRenderTasks();toast(`Filtered tasks to ${bSorted[els[0].index].buyer}`,'info')}}}});
+    makeChart('bBubble',{type:'bubble',data:{datasets:bSorted.map(b=>({label:b.buyer,data:[{x:b.avgTPS,y:b.bci,r:Math.sqrt(b.tasks)*2}],backgroundColor:bciColor(b.bci)+'80',borderColor:bciColor(b.bci)}))},options:{plugins:{legend:{display:false},tooltip:{...TT,callbacks:{label:c=>`${c.dataset.label}: TPS ${c.raw.x}, BCI ${c.raw.y}`}}},scales:{x:{grid:{color:'#1f232d'},title:{display:true,text:'Average Task Priority Score',color:'#5d6988'}},y:{grid:{color:'#1f232d'},title:{display:true,text:'Buyer Complexity Index',color:'#5d6988'}}}}});
+  }
+  document.getElementById('buyerRows').innerHTML=bSorted.map(b=>{
+    const c=bciColor(b.bci),band=b.bci>=55?'MODERATE':b.bci>=45?'NORMAL-HIGH':'MANAGEABLE';
+    return`<div class="buyer-row" style="cursor:pointer" onclick="navTo('tasks');document.getElementById('tmBuyerFilter').value='${b.buyer}';tmRenderTasks()"><div style="font-weight:600">${b.buyer}</div><div class="mono">${b.tasks}</div><div class="mono">${b.avgTC}</div><div class="mono">${b.avgRisk}</div><div class="mono">${b.avgTPS}</div><div><div class="bci-bar"><div class="bci-bg"><div class="bci-fill" style="width:${Math.min(b.bci/80*100,100)}%;background:${c}"></div></div><span class="bci-val" style="color:${c}">${b.bci}</span></div></div><div><span style="padding:2px 7px;border-radius:8px;font-size:9.5px;font-weight:700;background:${c}18;color:${c};border:1px solid ${c}44">${band}</span></div></div>`;
+  }).join('');
+
+  // ── TASKS ──
+  tmPopulateFilters();tmRenderKpis();tmRenderTasks();
+
+  // ── BALANCE ── (only if initialised)
+  if(bInitDone)bRenderAll();
+
+  // Save to localStorage
+  try{localStorage.setItem('laguna_merch',JSON.stringify(MERCH));localStorage.setItem('laguna_tasks',JSON.stringify(TASKS))}catch(e){}
+}
+
+/* ═══ CHART TYPE TOGGLE ═══ */
+function toggleChart(id,type,btn){
+  const c=CHARTS[id];if(!c)return;
+  btn.parentElement.querySelectorAll('.ch-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');
+  c.config.type=type;c.update('active');
+}
+
+/* ═══ MERCH TABLE ═══ */
+let sCo='mci',sDi=-1,curP=1;const PAGE_SZ=15;
+function sortT(c){sCo===c?sDi*=-1:(sCo=c,sDi=-1);renderTable()}
+function clearF(){['fTeam','fBand','fRole'].forEach(id=>document.getElementById(id).value='');document.getElementById('fSearch').value='';renderTable()}
+function getFiltered(){
+  const md=computeMerchData();const t=document.getElementById('fTeam').value,b=document.getElementById('fBand').value,r=document.getElementById('fRole').value,q=document.getElementById('fSearch').value.toLowerCase();
+  return md.filter(m=>(!t||m.team===t)&&(!b||m.band===b)&&(!r||m.role===r)&&(!q||m.name.toLowerCase().includes(q)||m.id.toLowerCase().includes(q))).sort((a,b)=>{let va=a[sCo],vb=b[sCo];if(typeof va==='string'){va=va.toLowerCase();vb=vb.toLowerCase()}return va<vb?sDi:va>vb?-sDi:0});
+}
+function renderTable(){
+  const f=getFiltered(),tot=f.length,pages=Math.max(1,Math.ceil(tot/PAGE_SZ));if(curP>pages)curP=1;
+  const sl=f.slice((curP-1)*PAGE_SZ,curP*PAGE_SZ);
+  document.getElementById('mtbody').innerHTML=sl.map(m=>{const c=mciColor(m.mci);const bandCls=m.band==='HIGH'?'rose':m.band==='MODERATE'?'mod':'norm';const bandBg=m.band==='HIGH'?'rgba(251,113,133,.1)':m.band==='MODERATE'?'var(--mod-bg)':'var(--norm-bg)';const bandCol=m.band==='HIGH'?'var(--rose)':m.band==='MODERATE'?'var(--mod)':'var(--norm)';
+    return`<tr><td class="fw">${m.name}</td><td>${m.role}</td><td>${m.team}</td><td style="text-align:center">${m.brands}</td><td><div class="sbar"><div class="sbg"><div class="sbf" style="width:${m.avgMWS/10*100}%;background:${c}"></div></div><span class="sv">${m.avgMWS}</span></div></td><td class="mono">${m.weeklyHrs}h</td><td><div class="sbar"><div class="sbg"><div class="sbf" style="width:${m.mci}%;background:${c}"></div></div><span class="sv" style="color:${c}">${m.mci}</span></div></td><td><span style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:10px;font-size:9.5px;font-weight:700;background:${bandBg};color:${bandCol}">${m.band}</span></td></tr>`}).join('')||'<tr><td colspan="8" style="text-align:center;padding:28px;color:var(--muted)">No results</td></tr>';
+  document.getElementById('tinfo').textContent=`Showing ${Math.min((curP-1)*PAGE_SZ+1,tot)}–${Math.min(curP*PAGE_SZ,tot)} of ${tot}`;
+  const pb=document.getElementById('pbtns');pb.innerHTML=`<button class="pbtn" onclick="chP(${curP-1})" ${curP===1?'disabled':''}>‹</button>`;
+  for(let i=1;i<=pages;i++)pb.innerHTML+=`<button class="pbtn ${i===curP?'active':''}" onclick="chP(${i})">${i}</button>`;
+  pb.innerHTML+=`<button class="pbtn" onclick="chP(${curP+1})" ${curP===pages?'disabled':''}>›</button>`;
+}
+function chP(p){curP=p;renderTable()}
+
+/* ═══ SURVEY (static — doesn't change) ═══ */
+function initSurvey(){
+  makeChart('svTool',{type:'doughnut',data:{labels:['Excel Spreadsheets','WFX System','Email','WhatsApp'],datasets:[{data:[31,18,10,5],backgroundColor:['#f5a623','#5b8af5','#3dd68c','#a78bfa'],borderWidth:0,hoverOffset:6}]},options:{cutout:'60%',plugins:{legend:{display:true,position:'right',labels:{color:'#5d6988',boxWidth:10,padding:7}},tooltip:{...TT}}}});
+  makeChart('svExcel',{type:'bar',data:{labels:['Highly (80%+)','Moderate (40–80%)','Low (less than 40%)'],datasets:[{data:[31,30,3],backgroundColor:['#fb7185','#fbbf24','#3dd68c'],borderRadius:6,borderSkipped:false}]},options:{plugins:{legend:{display:false},tooltip:{...TT}},scales:{x:{grid:{display:false}},y:{grid:{color:'#1f232d'}}}}});
+  makeChart('svLead',{type:'doughnut',data:{labels:['More than 90 days','Up to 90 days','Up to 60 days','Less than 60 days'],datasets:[{data:[31,26,3,4],backgroundColor:['#fb7185','#f5a623','#fbbf24','#3dd68c'],borderWidth:0,hoverOffset:6}]},options:{cutout:'60%',plugins:{legend:{display:true,position:'right',labels:{color:'#5d6988',boxWidth:10,padding:7}},tooltip:{...TT}}}});
+  makeChart('svVol',{type:'bar',data:{labels:['Above 1,000','Above 500','Above 3,000','Above 10,000','Below 500','Above 5,000'],datasets:[{data:[23,17,14,5,3,2],backgroundColor:['#5b8af5','#2dd4bf','#a78bfa','#fb7185','#3dd68c','#fbbf24'],borderRadius:6,borderSkipped:false}]},options:{plugins:{legend:{display:false},tooltip:{...TT}},scales:{x:{grid:{display:false},ticks:{maxRotation:25}},y:{grid:{color:'#1f232d'}}}}});
+  [['Fabric and Sampling Lead Times',41],['Interdepartmental Coordination Delays',27],['Data / Bill of Materials Correction Burden',22],['Manual Excel Reporting Load',18],['Sample Review and Submission Delays',16],['Waiting for Fabric Price Confirmations',12],['Multiple Meetings / Less Technical Clarity',9]].forEach(([l,n])=>{document.getElementById('svBottle').innerHTML+=`<div class="bar-item"><div class="bi-top"><span class="bi-label">${l}</span><span class="bi-count">${n}</span></div><div class="bi-bg"><div class="bi-fill" style="width:${n/45*100}%;background:var(--rose)"></div></div></div>`});
+  [['Improve Sample Lead Times',31],['Right People at Right Positions',25],['Reduce Manual / Excel Work',23],['Better WFX / System Integration',18],['Ownership and Accountability Culture',14],['Timely Cross-Department Coordination',11],['Clear Standard Operating Procedures per Buyer',9]].forEach(([l,n])=>{document.getElementById('svEff').innerHTML+=`<div class="bar-item"><div class="bi-top"><span class="bi-label">${l}</span><span class="bi-count">${n}</span></div><div class="bi-bg"><div class="bi-fill" style="width:${n/35*100}%;background:var(--norm)"></div></div></div>`});
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TASK MANAGER
+   ═══════════════════════════════════════════════════════════ */
+let tmSortCol='TPS',tmSortDir=-1,tmCurPage=1;const TM_PAGE=20;
+function tmPopulateFilters(){const buyers=[...new Set(TASKS.map(t=>t.Buyer))].sort();const sel=document.getElementById('tmBuyerFilter');const cv=sel.value;sel.innerHTML='<option value="">All Buyers</option>'+buyers.map(b=>`<option${b===cv?' selected':''}>${b}</option>`).join('')}
+function tmRenderKpis(){
+  const buyers=[...new Set(TASKS.map(t=>t.Buyer))].sort();
+  document.getElementById('tmKpiStrip').innerHTML=buyers.map(b=>{const ts=TASKS.filter(t=>t.Buyer===b);const avg=ts.length?(ts.reduce((s,t)=>s+t.TPS,0)/ts.length).toFixed(2):'0';const col=+avg>=6.5?'var(--rose)':+avg>=5?'var(--amber)':'var(--blue)';return`<div class="kcard" style="padding:14px 12px;cursor:pointer" onclick="document.getElementById('tmBuyerFilter').value='${b}';tmRenderTasks()"><div class="kl">${b}</div><div class="kv" style="font-size:22px;color:${col}">${avg}</div><div class="ks">${ts.length} tasks</div></div>`}).join('');
+  document.getElementById('taskSubtitle').textContent=`${TASKS.length} tasks across ${buyers.length} buyers`;
+}
+function tmGetFiltered(){const b=document.getElementById('tmBuyerFilter').value,p=document.getElementById('tmPhaseFilter').value,q=document.getElementById('tmSearch').value.toLowerCase();return TASKS.filter(t=>(!b||t.Buyer===b)&&(!p||t.Phase===p)&&(!q||t.Task.toLowerCase().includes(q)||t.Buyer.toLowerCase().includes(q))).sort((a,b)=>{let va=a[tmSortCol],vb=b[tmSortCol];if(typeof va==='string'){va=va.toLowerCase();vb=vb.toLowerCase()}return va<vb?tmSortDir:va>vb?-tmSortDir:0})}
+function tmSort(c){tmSortCol===c?tmSortDir*=-1:(tmSortCol=c,tmSortDir=-1);tmRenderTasks()}
+function tmRenderTasks(){
+  const f=tmGetFiltered(),tot=f.length,pages=Math.max(1,Math.ceil(tot/TM_PAGE));if(tmCurPage>pages)tmCurPage=1;
+  const sl=f.slice((tmCurPage-1)*TM_PAGE,tmCurPage*TM_PAGE);
+  document.getElementById('tmTaskCount').innerHTML=`<strong>${tot}</strong> tasks`;
+  document.getElementById('tmBody').innerHTML=sl.map((t,i)=>{const tpsCls=t.TPS>=7?'tps-high':t.TPS>=5?'tps-med':'tps-low';const idx=(tmCurPage-1)*TM_PAGE+i+1;
+    return`<tr><td class="mono">${idx}</td><td class="fw">${t.Buyer}</td><td><span class="phase-pill ${t.Phase==='Development'?'phase-dev':'phase-bulk'}">${t.Phase}</span></td><td style="white-space:normal;max-width:380px">${t.Task}</td><td class="mono" style="text-align:center">${t.TC}</td><td class="mono" style="text-align:center">${t.Risk}</td><td class="mono" style="text-align:center">${t.Complexity}</td><td><span class="tps-badge ${tpsCls}">${t.TPS.toFixed(2)}</span></td><td><button class="pc-btn del" onclick="tmDeleteTask(${t.Row_ID})" style="opacity:1">✕</button></td></tr>`}).join('')||'<tr><td colspan="9" style="text-align:center;padding:28px;color:var(--muted)">No tasks</td></tr>';
+  document.getElementById('tmInfo').textContent=`Showing ${Math.min((tmCurPage-1)*TM_PAGE+1,tot)}–${Math.min(tmCurPage*TM_PAGE,tot)} of ${tot}`;
+  const pb=document.getElementById('tmPbtns');pb.innerHTML=`<button class="pbtn" onclick="tmChP(${tmCurPage-1})" ${tmCurPage===1?'disabled':''}>‹</button>`;
+  for(let i=1;i<=Math.min(pages,8);i++)pb.innerHTML+=`<button class="pbtn ${i===tmCurPage?'active':''}" onclick="tmChP(${i})">${i}</button>`;
+  if(pages>8)pb.innerHTML+=`<button class="pbtn" disabled>…</button>`;
+  pb.innerHTML+=`<button class="pbtn" onclick="tmChP(${tmCurPage+1})" ${tmCurPage===pages?'disabled':''}>›</button>`;
+}
+function tmChP(p){tmCurPage=p;tmRenderTasks()}
+function tmDeleteTask(rid){const t=TASKS.find(x=>x.Row_ID===rid);if(!t)return;const backup=[...TASKS];TASKS=TASKS.filter(x=>x.Row_ID!==rid);pushUndo(`Delete task "${t.Task.substring(0,30)}…"`,()=>{TASKS=backup});toast(`Task removed from ${t.Buyer}`,'warning');logActivity(`Deleted task: ${t.Task.substring(0,40)}…`,'del');recalcAll()}
+
+function tmOpenAddBuyer(){document.getElementById('tmBuyerName').value='';document.getElementById('tmNewTasksList').innerHTML='';tmAddTaskRow();document.getElementById('tmBuyerModal').classList.add('open')}
+function tmCloseBuyerModal(){document.getElementById('tmBuyerModal').classList.remove('open')}
+let tmRowIdx=0;
+function tmAddTaskRow(){const idx=tmRowIdx++;const d=document.createElement('div');d.style.cssText='display:grid;grid-template-columns:1fr 55px 55px 55px 28px;gap:5px;align-items:end;margin-bottom:6px';d.innerHTML=`<div><label class="flbl" style="font-size:8px">Task</label><input class="finp" style="font-size:11px;padding:6px 8px" id="ntask_${idx}"></div><div><label class="flbl" style="font-size:8px">TC</label><input class="finp" style="font-size:11px;padding:6px" type="number" min="1" max="10" value="5" id="ntc_${idx}"></div><div><label class="flbl" style="font-size:8px">Risk</label><input class="finp" style="font-size:11px;padding:6px" type="number" min="1" max="10" value="5" id="nrisk_${idx}"></div><div><label class="flbl" style="font-size:8px">Cmplx</label><input class="finp" style="font-size:11px;padding:6px" type="number" min="1" max="10" value="5" id="ncomp_${idx}"></div><button class="pc-btn del" style="opacity:1;padding:6px;margin-bottom:1px" onclick="this.parentElement.remove()">✕</button>`;document.getElementById('tmNewTasksList').appendChild(d)}
+function tmSaveBuyer(){const name=document.getElementById('tmBuyerName').value.trim().toUpperCase();if(!name){toast('Enter a buyer name','warning');return}if([...new Set(TASKS.map(t=>t.Buyer))].includes(name)){toast('Buyer already exists','error');return}const rows=document.getElementById('tmNewTasksList').children;let added=0;for(const r of rows){const ti=r.querySelector('input[id^="ntask_"]');const desc=ti?.value.trim();if(!desc)continue;const tc=Math.max(1,Math.min(10,parseInt(r.querySelector('input[id^="ntc_"]').value)||5));const risk=Math.max(1,Math.min(10,parseInt(r.querySelector('input[id^="nrisk_"]').value)||5));const comp=Math.max(1,Math.min(10,parseInt(r.querySelector('input[id^="ncomp_"]').value)||5));TASKS.push({Row_ID:nextTaskId++,Buyer:name,Phase:document.getElementById('tmBuyerPhase').value,Task:desc,TC:tc,Risk:risk,Complexity:comp,TPS:+(tc*.35+risk*.40+comp*.25).toFixed(2)});added++}if(!added){toast('Add at least one task','warning');return}tmCloseBuyerModal();toast(`Added buyer ${name} with ${added} tasks`,'success');logActivity(`Added buyer: ${name} (${added} tasks)`,'add');recalcAll()}
+
+function tmOpenRemoveBuyer(){const buyers=[...new Set(TASKS.map(t=>t.Buyer))].sort();document.getElementById('tmRemoveBuyerSel').innerHTML=buyers.map(b=>`<option>${b}</option>`).join('');tmPreviewRemove();document.getElementById('tmRemoveModal').classList.add('open')}
+function tmCloseRemoveModal(){document.getElementById('tmRemoveModal').classList.remove('open')}
+function tmPreviewRemove(){const b=document.getElementById('tmRemoveBuyerSel').value;const cnt=TASKS.filter(t=>t.Buyer===b).length;document.getElementById('tmRemovePreview').innerHTML=`<strong>${cnt}</strong> tasks will be removed for <strong>${b}</strong>.`}
+function tmConfirmRemoveBuyer(){const buyer=document.getElementById('tmRemoveBuyerSel').value;const backup=[...TASKS];TASKS=TASKS.filter(t=>t.Buyer!==buyer);const removed=backup.length-TASKS.length;pushUndo(`Remove buyer ${buyer}`,()=>{TASKS=backup});tmCloseRemoveModal();toast(`Removed ${buyer} and ${removed} tasks`,'warning');logActivity(`Removed buyer: ${buyer} (${removed} tasks)`,'del');recalcAll()}
+
+function tmOpenAddTask(){const buyers=[...new Set(TASKS.map(t=>t.Buyer))].sort();document.getElementById('tmTaskBuyer').innerHTML=buyers.map(b=>`<option>${b}</option>`).join('');document.getElementById('tmTaskDesc').value='';document.getElementById('tmTaskModal').classList.add('open')}
+function tmCloseTaskModal(){document.getElementById('tmTaskModal').classList.remove('open')}
+function tmSaveTask(){const buyer=document.getElementById('tmTaskBuyer').value,desc=document.getElementById('tmTaskDesc').value.trim();if(!desc){toast('Enter a task description','warning');return}const tc=Math.max(1,Math.min(10,parseInt(document.getElementById('tmTaskTC').value)||5));const risk=Math.max(1,Math.min(10,parseInt(document.getElementById('tmTaskRisk').value)||5));const comp=Math.max(1,Math.min(10,parseInt(document.getElementById('tmTaskComp').value)||5));TASKS.push({Row_ID:nextTaskId++,Buyer:buyer,Phase:document.getElementById('tmTaskPhase').value,Task:desc,TC:tc,Risk:risk,Complexity:comp,TPS:+(tc*.35+risk*.40+comp*.25).toFixed(2)});tmCloseTaskModal();toast(`Task added to ${buyer}`,'success');logActivity(`Added task to ${buyer}: ${desc.substring(0,40)}`,'add');recalcAll()}
+function tmExportTasks(){const csv=[['Buyer','Phase','Task','Time Criticality','Risk','Complexity','Task Priority Score'],...TASKS.map(t=>[t.Buyer,t.Phase,t.Task,t.TC,t.Risk,t.Complexity,t.TPS])].map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='laguna_tasks.csv';a.click();toast('Tasks exported','success')}
+
+/* ═══════════════════════════════════════════════════════════
+   WORKFORCE BALANCING
+   ═══════════════════════════════════════════════════════════ */
+let bInitDone=false,bPpl=[],bOrig=[],bDragId=null,bEditId=null,bNextId=5000;
+function bCalcMCI(p){return calcMCI(p)}
+
+/* ── CRITICAL: Sync workforce balancing state back to master MERCH array ── */
+function syncBplToMerch(){
+  // Build a lookup from bPpl by _id to get current team assignment
+  const idMap=new Map();bPpl.forEach(p=>idMap.set(p._id,p));
+  // Update MERCH to reflect current team assignments from bPpl
+  // We match by name+origTeam since MERCH doesn't have _id
+  bPpl.forEach(p=>{
+    if(p._isNew)return; // new people are already added to MERCH via bSavePerson
+    const mIdx=MERCH.findIndex(m=>m.name===p.name&&(m.team===p._origTeam||m.team===p.team));
+    if(mIdx!==-1){
+      MERCH[mIdx].team=p.team;
+      MERCH[mIdx].weeklyHrs=p.weeklyHrs;
+      MERCH[mIdx].brands=p.brands;
+      MERCH[mIdx].avgMWS=p.avgMWS;
+      MERCH[mIdx].role=p.role;
+      MERCH[mIdx].manager=p.manager||MERCH[mIdx].manager;
+    }
+  });
+}
+
+function bTeamStats(tn){const m=bPpl.filter(p=>p.team===tn);if(!m.length)return{name:tn,count:0,avgMCI:0,avgHrs:0,cap:0,totalHrs:0};const avgMCI=+(m.reduce((s,p)=>s+p.mci,0)/m.length).toFixed(1);const avgHrs=+(m.reduce((s,p)=>s+(+p.weeklyHrs||0),0)/m.length).toFixed(1);const totalHrs=+m.reduce((s,p)=>s+(+p.weeklyHrs||0),0).toFixed(1);const cap=CAP_OVERRIDE[tn]!==undefined&&!bPpl.some(p=>p._moved||p._isNew)?CAP_OVERRIDE[tn]:+(avgHrs/40*100).toFixed(1);return{name:tn,count:m.length,avgMCI,avgHrs,totalHrs,cap}}
+function bFlags(s){const f=[s.avgMCI>55,s.avgHrs>35,s.cap>85];return{mci:f[0],hrs:f[1],cap:f[2],n:f.filter(Boolean).length}}
+function bOverallAvg(){return bPpl.length?+(bPpl.reduce((s,p)=>s+p.mci,0)/bPpl.length).toFixed(1):0}
+
+function bRenderStrip(){document.getElementById('bHealthStrip').innerHTML=ALL_TEAMS.map(t=>{const s=bTeamStats(t),f=bFlags(s);return`<div class="hchip ${f.n>=2?'flagged':f.n===1?'warning':'ok'}"><div class="hc-n">${t} (${s.count})</div><div class="hc-v">${s.avgMCI}</div><div class="hc-sub">${s.avgHrs}h/wk · ${s.cap}% cap</div><div class="hc-f">${f.mci?'<span class="hf mci">CI High</span>':''}${f.hrs?'<span class="hf hrs">Hrs High</span>':''}${f.cap?'<span class="hf cap">Cap High</span>':''}${f.n===0?'<span class="hf ok">Balanced</span>':''}</div></div>`}).join('');const avg=bOverallAvg();document.getElementById('bAvgPin').style.left=Math.min(avg,100)+'%';document.getElementById('bAvgVal').textContent=avg}
+function bRenderKanban(){document.getElementById('bKanban').innerHTML=ALL_TEAMS.map(team=>{const s=bTeamStats(team),f=bFlags(s),isMod=MOD_TEAMS.includes(team);const members=bPpl.filter(p=>p.team===team).sort((a,b)=>b.mci-a.mci);const cards=members.length?members.map(p=>{const cls=[p._isNew?'pnew':'',p._moved?'pmoved':'',p._sugg?'psugg':''].filter(Boolean).join(' ');return`<div class="pcard ${cls}" draggable="true" id="pc_${p._id}" ondragstart="bDS(event,${p._id})" ondragend="bDE(event)"><div class="pc-top"><div class="pc-n">${p.name}</div><span class="pc-mci">${p.mci}</span></div><div class="pc-role">${p.role}</div><div class="pc-meta">${p.weeklyHrs}h · ${p.brands}br · WS ${p.avgMWS}</div>${p._moved?`<div class="pc-from">← ${p._origTeam}</div>`:''}<div class="pc-actions"><button class="pc-btn" onclick="bOpenEdit(${p._id})">Edit</button><button class="pc-btn del" onclick="bConfirmDel(${p._id})">✕</button></div></div>`}).join(''):'<div class="kdrop-hint">Drop here</div>';return`<div class="kcol col-${f.n>=2?'flagged':f.n===1?'warn':'ok'}" ondragover="bDO(event)" ondrop="bDR(event,'${team}')" ondragleave="bDL(event)"><div class="kchdr"><div class="kc-name"><span>${team}</span><span class="kc-badge">${isMod?'MOD':'NRM'}</span></div><div style="display:flex;justify-content:space-between"><span class="kc-mci">CI ${s.avgMCI}</span><span class="kc-cnt">${s.count} ppl</span></div><div class="kc-hrs">${s.avgHrs}h/wk · ${s.cap}%</div><div class="kc-flags">${f.mci?'<span class="hf mci">CI↑</span>':''}${f.hrs?'<span class="hf hrs">H↑</span>':''}${f.cap?'<span class="hf cap">C↑</span>':''}</div></div><div class="kbody">${cards}</div></div>`}).join('')}
+function bRenderSummary(){const moved=bPpl.filter(p=>p.team!==p._origTeam),newP=bPpl.filter(p=>p._isNew),total=moved.length+newP.length;document.getElementById('bMovesCtr').innerHTML=`<strong>${total}</strong> change${total!==1?'s':''}`;const log=document.getElementById('bMoveLog');if(total>0){log.style.display='block';log.innerHTML=[...moved.map(p=>`<div class="mlog-item"><span class="mlog-name">${p.name}</span><span class="mlog-from">${p._origTeam}</span><span class="mlog-arr">→</span><span class="mlog-to">${p.team}</span><span class="mlog-mci">CI ${p.mci}</span></div>`),...newP.map(p=>`<div class="mlog-item"><span class="mlog-name">${p.name}</span><span class="mlog-from" style="color:var(--purple)">NEW</span><span class="mlog-arr">→</span><span class="mlog-to">${p.team}</span></div>`)].join('');document.getElementById('bSumMeta').textContent=`${moved.length} moved · ${newP.length} added`}else{log.style.display='none';document.getElementById('bSumMeta').textContent='Drag cards to rebalance'}
+  document.getElementById('bSumGrid').innerHTML=ALL_TEAMS.map(t=>{const cur=bTeamStats(t);const orig=bOrig.filter(p=>p._origTeam===t&&!p._isNew);const origAvg=orig.length?+(orig.reduce((s,p)=>s+p.mci,0)/orig.length).toFixed(1):0;const delta=+(cur.avgMCI-origAvg).toFixed(1);const dH=delta>0?`<span class="dlt-up">▲${delta}</span>`:delta<0?`<span class="dlt-dn">▼${Math.abs(delta)}</span>`:'<span class="dlt-eq">—</span>';return`<div class="scard"><div class="scard-name">${t} (${cur.count})</div><div class="scard-row"><span class="scard-lbl">Before</span><span class="scard-val">${origAvg}</span></div><div class="scard-row"><span class="scard-lbl">After</span><span class="scard-val">${cur.avgMCI} ${dH}</span></div><div class="scard-row"><span class="scard-lbl">Hours/Week</span><span class="scard-val">${cur.avgHrs}h</span></div><div class="scard-bar"><div class="scard-bar-fill" style="width:${Math.min(cur.avgMCI,100)}%;background:var(--blue)"></div></div></div>`}).join('')}
+function bRenderAll(){bRenderStrip();bRenderKanban();bRenderSummary()}
+
+function bDS(e,id){bDragId=id;e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',String(id));requestAnimationFrame(()=>{const el=document.getElementById('pc_'+id);if(el)el.classList.add('dragging')})}
+function bDE(){document.querySelectorAll('.pcard').forEach(c=>c.classList.remove('dragging'));document.querySelectorAll('.kcol').forEach(c=>c.classList.remove('drag-over'));bDragId=null}
+function bDO(e){e.preventDefault();e.dataTransfer.dropEffect='move';e.currentTarget.classList.add('drag-over')}
+function bDL(e){if(!e.currentTarget.contains(e.relatedTarget))e.currentTarget.classList.remove('drag-over')}
+function bDR(e,dest){e.preventDefault();e.currentTarget.classList.remove('drag-over');const id=bDragId!=null?bDragId:parseInt(e.dataTransfer.getData('text/plain'));const p=bPpl.find(x=>x._id===id);if(!p||p.team===dest)return;const from=p.team;p.team=dest;p.mci=bCalcMCI(p);p._moved=p.team!==p._origTeam;p._sugg=false;bDragId=null;syncBplToMerch();recalcAll();bRenderAll();toast(`${p.name}: ${from} → ${dest}`,'info');logActivity(`Moved ${p.name}: ${from} → ${dest}`,'move')}
+
+function bAutoBalance(){bPpl.forEach(p=>p._sugg=false);let moves=0;for(let i=0;i<20;i++){const stats=ALL_TEAMS.map(t=>bTeamStats(t)).filter(s=>s.count>0).sort((a,b)=>b.avgMCI-a.avgMCI);if(stats.length<2)break;if(stats[0].avgMCI-stats[stats.length-1].avgMCI<8)break;const src=bPpl.filter(p=>p.team===stats[0].name);if(src.length<=2)break;const cands=src.filter(p=>p.role!=='Manager').sort((a,b)=>b.mci-a.mci);let best=null,bestS=Infinity;for(const c of cands){const after=src.filter(x=>x._id!==c._id);if(!after.length)continue;const sA=after.reduce((s,p)=>s+p.mci,0)/after.length;const dM=bPpl.filter(p=>p.team===stats[stats.length-1].name);const dA=(dM.reduce((s,p)=>s+p.mci,0)+c.mci)/(dM.length+1);const sp=Math.abs(sA-dA);if(sp<bestS){bestS=sp;best=c}}if(!best)break;best.team=stats[stats.length-1].name;best.mci=bCalcMCI(best);best._moved=best.team!==best._origTeam;best._sugg=true;moves++}syncBplToMerch();recalcAll();bRenderAll();toast(`Auto-balance complete — ${moves} moves`,'success');logActivity(`Ran auto-balance: ${moves} moves`,'edit')}
+function bReset(){if(!confirm('Reset all changes?'))return;bPpl=bOrig.map(p=>({...p,_moved:false,_sugg:false}));syncBplToMerch();recalcAll();bRenderAll();toast('All changes reset','info');logActivity('Reset all balancing changes','edit')}
+
+function bOpenAdd(){bEditId=null;document.getElementById('bModalTitle').textContent='Add New Person';['bfName','bfHrs','bfMWS','bfMgr'].forEach(id=>document.getElementById(id).value='');document.getElementById('bfRole').value='Merchandiser';document.getElementById('bfBrands').value='1';document.getElementById('bBtnDel').style.display='none';document.getElementById('bMciVal').textContent='—';document.getElementById('bMciZone').textContent='Enter Workload Score to preview';const sel=document.getElementById('bfTeam');sel.innerHTML=ALL_TEAMS.map(t=>`<option>${t}</option>`).join('');bPreviewMCI();document.getElementById('bModal').classList.add('open')}
+function bOpenEdit(id){const p=bPpl.find(x=>x._id===id);if(!p)return;bEditId=id;document.getElementById('bModalTitle').textContent='Edit Person';document.getElementById('bfName').value=p.name;document.getElementById('bfRole').value=p.role;const sel=document.getElementById('bfTeam');sel.innerHTML=ALL_TEAMS.map(t=>`<option${t===p.team?' selected':''}>${t}</option>`).join('');document.getElementById('bfHrs').value=p.weeklyHrs;document.getElementById('bfBrands').value=p.brands;document.getElementById('bfMWS').value=p.avgMWS;document.getElementById('bfMgr').value=p.manager||'';document.getElementById('bBtnDel').style.display='inline-block';bPreviewMCI();document.getElementById('bModal').classList.add('open')}
+function bCloseModal(){document.getElementById('bModal').classList.remove('open');bEditId=null}
+function bPreviewMCI(){const role=document.getElementById('bfRole').value;document.getElementById('bRoleHint').textContent=`Weight: ${ROLE_W[role]||1}×`;const mws=parseFloat(document.getElementById('bfMWS').value)||0;if(!mws){document.getElementById('bMciVal').textContent='—';return}const v=bCalcMCI({role,weeklyHrs:parseFloat(document.getElementById('bfHrs').value)||0,brands:parseInt(document.getElementById('bfBrands').value)||1,avgMWS:mws});document.getElementById('bMciVal').textContent=v;document.getElementById('bMciVal').style.color='var(--text)';document.getElementById('bMciZone').textContent=v>=35&&v<=55?'In target zone (35–55)':v>55?'Above target':'Below target'}
+function bSavePerson(){const name=document.getElementById('bfName').value.trim(),role=document.getElementById('bfRole').value,team=document.getElementById('bfTeam').value,hrs=parseFloat(document.getElementById('bfHrs').value)||0,brands=parseInt(document.getElementById('bfBrands').value)||1,mws=parseFloat(document.getElementById('bfMWS').value),mgr=document.getElementById('bfMgr').value.trim();if(!name){toast('Enter a name','warning');return}if(!mws||mws<1||mws>10){toast('Workload Score must be 1–10','warning');return}if(hrs<1){toast('Enter valid hours','warning');return}const newMCI=bCalcMCI({role,weeklyHrs:hrs,brands,avgMWS:mws});
+  if(bEditId!==null){const p=bPpl.find(x=>x._id===bEditId);if(p){Object.assign(p,{name,role,team,weeklyHrs:hrs,brands,avgMWS:mws,manager:mgr,mci:newMCI});p._moved=p.team!==p._origTeam;toast(`Updated ${name}`,'success');logActivity(`Edited person: ${name}`,'edit')}}
+  else{bPpl.push({name,role,team,weeklyHrs:hrs,brands,avgMWS:mws,manager:mgr,mci:newMCI,id:'NEW_'+bNextId,_id:bNextId++,_origTeam:team,_moved:false,_sugg:false,_isNew:true});
+    // Also add to main MERCH array so it persists across tabs
+    MERCH.push({name,id:'NEW_'+(nextMerchId++),role,manager:mgr,team,brands,avgMWS:mws,weeklyHrs:hrs});
+    toast(`Added ${name} to ${team}`,'success');logActivity(`Added person: ${name} to ${team}`,'add')}
+  bCloseModal();syncBplToMerch();recalcAll();bRenderAll()}
+function bConfirmDel(id){const p=bPpl.find(x=>x._id===id);if(!p||!confirm(`Remove "${p.name}"?`))return;const backup=[...bPpl.map(x=>({...x}))];const merchBackup=[...MERCH.map(x=>({...x}))];bPpl=bPpl.filter(x=>x._id!==id);MERCH=MERCH.filter(m=>m.name!==p.name);pushUndo(`Remove ${p.name}`,()=>{bPpl=backup;MERCH=merchBackup.map(x=>({...x}))});syncBplToMerch();recalcAll();bRenderAll();toast(`Removed ${p.name}`,'warning');logActivity(`Removed person: ${p.name}`,'del')}
+function bDeletePerson(){if(bEditId===null)return;bConfirmDel(bEditId);bCloseModal()}
+
+function bExport(){const csv=[['Name','Role','Original Team','Current Team','Status','Complexity Index','Weekly Hours','Brands','Workload Score'],...bPpl.map(p=>[p.name,p.role,p._origTeam,p.team,p._isNew?'New':p._moved?'Moved':'No Change',p.mci,p.weeklyHrs,p.brands,p.avgMWS])].map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='laguna_reallocation.csv';a.click();toast('Exported reallocation plan','success')}
+
+function bInit(){
+  bInitDone=true;const md=computeMerchData();
+  bPpl=md.map((m,i)=>({...m,_id:i,_origTeam:m.team,_isNew:false,_moved:false,_sugg:false}));
+  bOrig=bPpl.map(p=>({...p}));bRenderAll();
+}
+function exportDashboardPDF(){toast('Generating export — use browser Print (Ctrl+P) for PDF','info')}
+
+/* ═══════════════════════════════════════════════════════════
+   INITIALISE — Load saved data or generate tasks
+   ═══════════════════════════════════════════════════════════ */
+(function init(){
+  // Try loading from localStorage
+  try{
+    const savedMerch=localStorage.getItem('laguna_merch');
+    const savedTasks=localStorage.getItem('laguna_tasks');
+    if(savedMerch)MERCH=JSON.parse(savedMerch);
+    if(savedTasks&&JSON.parse(savedTasks).length>10)TASKS=JSON.parse(savedTasks);
+  }catch(e){}
+
+  // Generate tasks if empty
+  if(TASKS.length<20){
+    TASKS=[];let rid=1;
+    const buyerDefs=[['LACOSTE',37],['COS',60],['ARKET',60],['DRESSMAN / VOLT',34],['H&B',34],['RL',52],['CT',34],['RESS',27],['J&J',36],['TH EU',39]];
+    const devTasks=['Proto Sample Request and Dispatch','Counter Fabric Preparation','FPT / GPT Processing','PLM Update (Measurements, Trims, Callouts)','Carryover Styles in Actual Colours','Fabric and Trims Sourcing','Development Rework','SMS Sample Preparation','Fiber Recommendation Sheet','Logistics Training','Tech Pack Review','CAD Development','Mood Board Coordination','Colour Approval Process','Size Set Sample','Fit Sample Review','Wash Recipe Development','Print and Embroidery Artwork','Label Specification','Costing Sheet'];
+    const bulkTasks=['Production Order Confirmation','Fabric In-House Follow Up','Trim Sourcing Approval','Pre-Production Meeting','Bulk Cutting Approval','In-Line Quality Inspection','Final Inspection','Shipment Booking','Documentation Compliance','Invoice Payment Follow Up','Packing List','Container Loading','Quality Audit','Timeline Tracking','Delivery Schedule'];
+    buyerDefs.forEach(([buyer,count])=>{for(let i=0;i<count;i++){const phase=i<count*.6?'Development':'Bulk';const templates=phase==='Development'?devTasks:bulkTasks;const task=templates[i%templates.length]+(i>=templates.length?` (${buyer} v${Math.ceil(i/templates.length)})`:'');const tc=Math.max(2,Math.min(10,Math.round(4+Math.random()*5)));const risk=Math.max(2,Math.min(10,Math.round(4+Math.random()*5)));const comp=Math.max(2,Math.min(10,Math.round(3+Math.random()*6)));TASKS.push({Row_ID:rid++,Buyer:buyer,Phase:phase,Task:task,TC:tc,Risk:risk,Complexity:comp,TPS:+(tc*.35+risk*.40+comp*.25).toFixed(2)})}});
+    nextTaskId=rid+100;
+  }
+
+  initSurvey();
+  recalcAll();
+
+  // Init balance on first visit
+  document.querySelector('.nb[data-page="balance"]').addEventListener('click',()=>{if(!bInitDone)bInit()},{once:true});
+})();
+</script>
+</body>
+</html>
